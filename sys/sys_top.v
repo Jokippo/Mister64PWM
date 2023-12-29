@@ -1424,39 +1424,39 @@ always @(posedge clk_vid) begin
 	if(de_emu) hs_cnt <= 0;
 end
 
-/////////////////////////  RGB PMW  /////////////////////////////////////
+/////////////////////////  RGB PWM  /////////////////////////////////////
 
 always @(posedge clk_vid) begin
 	vga_pwm <= vga_pwm + 1'd1; 
 	
-	if (vga_pwm < vga_o[17:16])
+	if (vga_pwm < vga_o[17:16] && vga_o[23:18] < 6'b111111)
 		pwm_v[23:16] <= vga_o[23:16] + 3'd4;
 	else 	
 		pwm_v[23:16] <= vga_o[23:16];
 		
-	if (vga_pwm < vga_o[9:8])
+	if (vga_pwm < vga_o[9:8] && vga_o[15:10] < 6'b111111)
 		pwm_v[15:8] <= vga_o[15:8] + 3'd4;
 	else 	
 		pwm_v[15:8] <= vga_o[15:8];
 		
-	if (vga_pwm < vga_o[1:0])
+	if (vga_pwm < vga_o[1:0] && vga_o[7:2] < 6'b111111)
 		pwm_v[7:0] <= vga_o[7:0] + 3'd4;
 	else 	
 		pwm_v[7:0] <= vga_o[7:0];
 		
 	// VGA Scaler
 	
-	if (vga_pwm < vgas_o[17:16])
+	if (vga_pwm < vgas_o[17:16] && vgas_o[23:18] < 6'b111111)
 		pwms_v[23:16] <= vgas_o[23:16] + 3'd4;
 	else 	
 		pwms_v[23:16] <= vgas_o[23:16];
 		
-	if (vga_pwm < vgas_o[9:8])
+	if (vga_pwm < vgas_o[9:8] && vgas_o[15:10] < 6'b111111)
 		pwms_v[15:8] <= vgas_o[15:8] + 3'd4;
 	else 	
 		pwms_v[15:8] <= vgas_o[15:8];
 		
-	if (vga_pwm < vgas_o[1:0])
+	if (vga_pwm < vgas_o[1:0] && vgas_o[7:2] < 6'b111111)
 		pwms_v[7:0] <= vgas_o[7:0] + 3'd4;
 	else 	
 		pwms_v[7:0] <= vgas_o[7:0];
