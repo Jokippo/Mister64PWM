@@ -1324,8 +1324,9 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 
 `ifndef MISTER_DUAL_SDRAM
 	wire VGA_DISABLE;
-	wire [23:0] vgas_o, vgas_pwm_o;
-	reg [23:0] pwms_v;
+	wire [23:0] vgas_o;
+	wire [17:0] vgas_pwm_o;
+	reg [17:0] pwms_v;
 	wire vgas_hs, vgas_vs, vgas_cs;
 	vga_out vga_scaler_out
 	(
@@ -1341,8 +1342,9 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 		.csync_o(vgas_cs)
 	);
 
-	wire [23:0] vga_o, vga_o_t, vga_pwm_o;
-	reg [23:0] pwm_v;
+	wire [23:0] vga_o, vga_o_t;
+	wire [17:0] vga_pwm_o;
+	reg [17:0] pwm_v;
 	reg [1:0] vga_pwm;
 	wire vga_hs, vga_vs, vga_cs, vga_hs_t, vga_vs_t, vga_cs_t;
 	vga_out vga_out
@@ -1394,9 +1396,9 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 
 	assign VGA_VS = (VGA_EN | SW[3]) ? 1'bZ      : (((vga_fb | vga_scaler) ? (~vgas_vs ^ VS[12])                         : VGA_DISABLE ? 1'd1 : ~vga_vs) | csync_en);
 	assign VGA_HS = (VGA_EN | SW[3]) ? 1'bZ      :  ((vga_fb | vga_scaler) ? ((csync_en ? ~vgas_cs : ~vgas_hs) ^ HS[12]) : VGA_DISABLE ? 1'd1 : (csync_en ? ~vga_cs : ~vga_hs));
-	assign VGA_R  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_pwm_o[23:18]                               : VGA_DISABLE ? 6'd0 : vga_pwm_o[23:18];
-	assign VGA_G  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_pwm_o[15:10]                               : VGA_DISABLE ? 6'd0 : vga_pwm_o[15:10];
-	assign VGA_B  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_pwm_o[7:2]                                 : VGA_DISABLE ? 6'd0 : vga_pwm_o[7:2]  ;
+	assign VGA_R  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_pwm_o[17:12]                               : VGA_DISABLE ? 6'd0 : vga_pwm_o[17:12];
+	assign VGA_G  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_pwm_o[11:6]                               : VGA_DISABLE ? 6'd0 : vga_pwm_o[11:6];
+	assign VGA_B  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_pwm_o[5:0]                                 : VGA_DISABLE ? 6'd0 : vga_pwm_o[5:0]  ;
 `endif
 
 reg video_sync = 0;
@@ -1430,36 +1432,36 @@ always @(posedge clk_vid) begin
 	vga_pwm <= vga_pwm + 1'd1; 
 	
 	if (vga_pwm < vga_o[17:16] && vga_o[23:18] < 6'b111111)
-		pwm_v[23:16] <= vga_o[23:16] + 3'd4;
+		pwm_v[17:12] <= vga_o[23:18] + 1'd1;
 	else 	
-		pwm_v[23:16] <= vga_o[23:16];
+		pwm_v[17:12] <= vga_o[23:18];
 		
 	if (vga_pwm < vga_o[9:8] && vga_o[15:10] < 6'b111111)
-		pwm_v[15:8] <= vga_o[15:8] + 3'd4;
+		pwm_v[11:6] <= vga_o[15:10] + 1'd1;
 	else 	
-		pwm_v[15:8] <= vga_o[15:8];
+		pwm_v[11:6] <= vga_o[15:10];
 		
 	if (vga_pwm < vga_o[1:0] && vga_o[7:2] < 6'b111111)
-		pwm_v[7:0] <= vga_o[7:0] + 3'd4;
+		pwm_v[5:0] <= vga_o[7:2] + 1'd1;
 	else 	
-		pwm_v[7:0] <= vga_o[7:0];
+		pwm_v[5:0] <= vga_o[7:2];
 		
 	// VGA Scaler
 	
 	if (vga_pwm < vgas_o[17:16] && vgas_o[23:18] < 6'b111111)
-		pwms_v[23:16] <= vgas_o[23:16] + 3'd4;
+		pwms_v[17:12] <= vgas_o[23:18] + 1'd1;
 	else 	
-		pwms_v[23:16] <= vgas_o[23:16];
+		pwms_v[17:12] <= vgas_o[23:18];
 		
 	if (vga_pwm < vgas_o[9:8] && vgas_o[15:10] < 6'b111111)
-		pwms_v[15:8] <= vgas_o[15:8] + 3'd4;
+		pwms_v[11:6] <= vgas_o[15:10] + 1'd1;
 	else 	
-		pwms_v[15:8] <= vgas_o[15:8];
+		pwms_v[11:6] <= vgas_o[15:10];
 		
 	if (vga_pwm < vgas_o[1:0] && vgas_o[7:2] < 6'b111111)
-		pwms_v[7:0] <= vgas_o[7:0] + 3'd4;
+		pwms_v[5:0] <= vgas_o[7:2] + 1'd1;
 	else 	
-		pwms_v[7:0] <= vgas_o[7:0];
+		pwms_v[5:0] <= vgas_o[7:2];
 	
 end
 
