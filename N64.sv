@@ -169,7 +169,8 @@ module emu
 	input   [6:0] USER_IN,
 	output  [6:0] USER_OUT,
 
-	input         OSD_STATUS
+	input         OSD_STATUS,
+	output        PWM_EN
 );
 
 assign HDMI_FREEZE = 1'b0;
@@ -184,6 +185,8 @@ assign BUTTONS   = 0;
 assign VGA_SCALER= 0;
 
 assign ADC_BUS  = 'Z;
+
+assign PWM_EN = status[101];
 
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
@@ -321,7 +324,8 @@ parameter CONF_STR = {
    "P1-;",
    "P1O[2],Error Overlay,Off,On;",
    "P1O[28],FPS Overlay,Off,On;",
-   
+   "P1O[101],VGA PWM,Off,On;",
+	
    "P2,System settings;",
 	"P2-;",
    "P2-,From N64-database;",
