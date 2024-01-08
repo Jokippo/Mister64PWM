@@ -1326,6 +1326,7 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 	wire VGA_DISABLE;
 	wire [23:0] vgas_o;
 	wire [17:0] vgas_pwm_o;
+	reg [17:0] pwms_v;
 	wire vgas_hs, vgas_vs, vgas_cs;
 	vga_out vga_scaler_out
 	(
@@ -1343,6 +1344,7 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 
 	wire [23:0] vga_o, vga_o_t;
 	wire [17:0] vga_pwm_o;
+	reg [17:0] pwm_v;
 	reg [1:0] vga_pwm;
 	wire vga_hs, vga_vs, vga_cs, vga_hs_t, vga_vs_t, vga_cs_t;
 	vga_out vga_out
@@ -1431,15 +1433,43 @@ always @(posedge clk_vid) begin
 		vga_pwm <= vga_pwm + 1'd1; 
 	else
 		vga_pwm <= 2'd3;
+	
+	if (vga_pwm < vga_o[17:16] && vga_o[23:18] < 6'b111111)
+		pwm_v[17:12] <= vga_o[23:18] + 1'd1;
+	else 	
+		pwm_v[17:12] <= vga_o[23:18];
+		
+	if (vga_pwm < vga_o[9:8] && vga_o[15:10] < 6'b111111)
+		pwm_v[11:6] <= vga_o[15:10] + 1'd1;
+	else 	
+		pwm_v[11:6] <= vga_o[15:10];
+		
+	if (vga_pwm < vga_o[1:0] && vga_o[7:2] < 6'b111111)
+		pwm_v[5:0] <= vga_o[7:2] + 1'd1;
+	else 	
+		pwm_v[5:0] <= vga_o[7:2];
+		
+	// VGA Scaler
+	
+	if (vga_pwm < vgas_o[17:16] && vgas_o[23:18] < 6'b111111)
+		pwms_v[17:12] <= vgas_o[23:18] + 1'd1;
+	else 	
+		pwms_v[17:12] <= vgas_o[23:18];
+		
+	if (vga_pwm < vgas_o[9:8] && vgas_o[15:10] < 6'b111111)
+		pwms_v[11:6] <= vgas_o[15:10] + 1'd1;
+	else 	
+		pwms_v[11:6] <= vgas_o[15:10];
+		
+	if (vga_pwm < vgas_o[1:0] && vgas_o[7:2] < 6'b111111)
+		pwms_v[5:0] <= vgas_o[7:2] + 1'd1;
+	else 	
+		pwms_v[5:0] <= vgas_o[7:2];
+	
 end
-	
-	assign vga_pwm_o[17:12] = (vga_pwm < vga_o[17:16]) ? ((vga_o[23:18] < 6'b111111) ? vga_o[23:18] + 1'd1 : vga_o[23:18]) : vga_o[23:18];
-	assign vga_pwm_o[11:6] = (vga_pwm < vga_o[9:8]) ? ((vga_o[15:10] < 6'b111111) ? vga_o[15:10] + 1'd1 : vga_o[15:10]) : vga_o[15:10];	
-	assign vga_pwm_o[5:0] = (vga_pwm < vga_o[1:0]) ? ((vga_o[7:2] < 6'b111111) ? vga_o[7:2] + 1'd1 : vga_o[7:2]) : vga_o[7:2];
-	
-	assign vgas_pwm_o[17:12] = (vga_pwm < vgas_o[17:16]) ? ((vgas_o[23:18] < 6'b111111) ? vgas_o[23:18] + 1'd1 : vgas_o[23:18]) : vgas_o[23:18];
-	assign vgas_pwm_o[11:6] = (vga_pwm < vgas_o[9:8]) ? ((vgas_o[15:10] < 6'b111111) ? vgas_o[15:10] + 1'd1 : vgas_o[15:10]) : vgas_o[15:10];	
-	assign vgas_pwm_o[5:0] = (vga_pwm < vgas_o[1:0]) ? ((vgas_o[7:2] < 6'b111111) ? vgas_o[7:2] + 1'd1 : vgas_o[7:2]) : vgas_o[7:2];
+
+assign vga_pwm_o = pwm_v; 
+assign vgas_pwm_o = pwms_v; 
 
 /////////////////////////  Audio output  ////////////////////////////////
 
