@@ -474,7 +474,9 @@ begin
       
          if (reset = '1') then
             stage_valid <= (others => '0');
-         elsif (pipeIn_trigger = '1') then
+         end if;
+         
+         if (pipeIn_trigger = '1') then
          
             if (settings_otherModes.cycleType = "01") then
                step2 <= '1';
@@ -1102,9 +1104,9 @@ begin
             export_Z.debug2         <= stage_zNewRaw(STAGE_OUTPUT - 1);
             export_Z.debug3         <= stage_zOld(STAGE_OUTPUT - 1);
             -- synthesis translate_on
+         end if;
 
-         elsif (step2 = '1') then -- trigger
-         
+         if (pipeIn_trigger = '0' and step2 = '1') then -- trigger
             -- synthesis translate_off
             stage2_texAddr(STAGE_TEXFETCH)     <= export_TextureAddr;
             stage2_texIndex_S0(STAGE_TEXFETCH) <= texture_S_index;
@@ -1112,8 +1114,11 @@ begin
             stage2_texIndex_T0(STAGE_TEXFETCH) <= texture_T_index;
             stage2_texIndex_TN(STAGE_TEXFETCH) <= texture_T_indexN;
             -- synthesis translate_on
-
          end if; 
+         
+         if (reset = '1') then
+            stage_valid <= (others => '0');
+         end if;
          
       end if;
    end process;

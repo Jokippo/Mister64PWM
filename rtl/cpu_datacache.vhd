@@ -38,6 +38,7 @@ entity cpu_datacache is
       read_ena          : in  std_logic;
       RW_addr           : in  unsigned(31 downto 0);
       RW_64             : in  std_logic;
+      read_busy         : out std_logic;
       read_done         : out std_logic;
       read_data         : out std_logic_vector(63 downto 0) := (others => '0');
       
@@ -72,6 +73,10 @@ architecture arch of cpu_datacache is
    signal tag_wren_a       : std_logic := '0';
    signal tag_address_b    : std_logic_vector(8 downto 0);
    signal tag_q_b          : std_logic_vector(21 downto 0);
+   
+   signal tag_newEna       : std_logic := '0';
+   signal tag_newData      : std_logic_vector(21 downto 0);
+   signal tag_compare      : std_logic_vector(21 downto 0);
 
    signal read_hit         : std_logic;
    
@@ -153,50 +158,58 @@ begin
                      std_logic_vector(tag_addr_1(12 downto 4));
                      
    tag_data_a     <= tag_data_cmd when (tag_wren_cmd = '1') else
-                     '1' & tag_q_b(20 downto 0);
+                     '1' & tag_compare(20 downto 0);
    
    
-   --itagram : entity mem.dpram
-   --generic map 
-   --( 
-   --   addr_width  => 9,
-   --   data_width  => 19 -- 17 bits(28..12) of address + 1 bit valid + 1 bit dirty
-   --)
-   --port map
-   --(
-   --   clock_a     => clk93,
-   --   address_a   => tag_address_a,
-   --   data_a      => tag_data_a,
-   --   wren_a      => tag_wren_a,
-   --   
-   --   clock_b     => clk93,
-   --   address_b   => tag_address_b,
-   --   data_b      => 19x"0",
-   --   wren_b      => '0',
-   --   q_b         => tag_q_b
-   --); 
-   --
-   --tag_address_b <= std_logic_vector(tag_addr(12 downto 4)) when (ce_fetch = '1') else std_logic_vector(tag_addr_1(12 downto 4));
-   
-   itagram : entity mem.RamMLAB
-   generic map
-   (
-      width      => 22, -- 30 bits(31..12) of address + 1 bit valid + 1 bit dirty
-      widthad    => 9
+   itagram : entity mem.dpram
+   generic map 
+   ( 
+      addr_width  => 9,
+      data_width  => 22 -- 30 bits(31..12) of address + 1 bit valid + 1 bit dirty
    )
    port map
    (
-      inclock    => clk93,
-      wren       => tag_wren_a,
-      data       => tag_data_a,
-      wraddress  => tag_address_a,
-      rdaddress  => tag_address_b,
-      q          => tag_q_b
-   );
+      clock_a     => clk93,
+      address_a   => tag_address_a,
+      data_a      => tag_data_a,
+      wren_a      => tag_wren_a,
+      
+      clock_b     => clk93,
+      clken_b     => ce_fetch,
+      address_b   => tag_address_b,
+      data_b      => 22x"0",
+      wren_b      => '0',
+      q_b         => tag_q_b
+   ); 
    
-   tag_address_b <= std_logic_vector(tag_addr_1(12 downto 4));
+   tag_address_b <= std_logic_vector(tag_addr(12 downto 4));
    
-   read_hit      <= '1' when (unsigned(tag_q_b(19 downto 0)) = RW_addr(31 downto 12) and tag_q_b(20) = '1') else '0';
+   tag_compare   <= tag_newData when (tag_newEna = '1') else
+                    tag_q_b;
+   
+
+   
+   --itagram : entity mem.RamMLAB
+   --generic map
+   --(
+   --   width      => 22, -- 30 bits(31..12) of address + 1 bit valid + 1 bit dirty
+   --   widthad    => 9
+   --)
+   --port map
+   --(
+   --   inclock    => clk93,
+   --   wren       => tag_wren_a,
+   --   data       => tag_data_a,
+   --   wraddress  => tag_address_a,
+   --   rdaddress  => tag_address_b,
+   --   q          => tag_q_b
+   --);
+   --
+   --tag_address_b <= std_logic_vector(tag_addr_1(12 downto 4));
+   
+   --tag_compare   <= tag_q_b;
+   
+   read_hit      <= '1' when (unsigned(tag_compare(19 downto 0)) = RW_addr(31 downto 12) and tag_compare(20) = '1') else '0';
   
    --------- data
    
@@ -272,6 +285,8 @@ begin
                        '1'     when ((state = IDLE and read_hit = '1' and write_ena = '1') or (writeMode = '1' and state = FILL and ram_done = '1')) else 
                        '0';
    
+   read_busy       <= '1' when (state = READWAIT or state = WAITSLOW or state = FILL) else '0';
+   
    read_done       <= '1' when (state = IDLE and write_ena_1 = '0' and read_hit = '1' and read_ena = '1' and slow_on = '0') else
                       '1' when (state = READWAIT) else
                       '1' when (state = WAITSLOW and slowcnt = 0) else
@@ -309,6 +324,20 @@ begin
          
          if (ce_fetch = '1') then
             tag_addr_1   <= tag_addr;
+            tag_newEna   <= '0';
+            if (tag_wren_a = '1') then
+               tag_newData  <= tag_data_a;
+               if (tag_address_a = std_logic_vector(tag_addr(12 downto 4))) then
+                  tag_newEna   <= '1';
+               end if;
+            end if;
+         else
+            if (tag_wren_a = '1') then
+               tag_newData  <= tag_data_a;
+               if (tag_address_a = std_logic_vector(tag_addr_1(12 downto 4))) then
+                  tag_newEna   <= '1';
+               end if;
+            end if;
          end if;
          
          force_wb <= force_wb_in;
@@ -336,7 +365,7 @@ begin
                   write_data_1   <= write_data_rot;
                   fillNext       <= '0';
                   write_ena_1    <= write_ena;
-                  fillAddr       <= unsigned(tag_q_b(19 downto 0)) & RW_addr(11 downto 4) & "0000";
+                  fillAddr       <= unsigned(tag_compare(19 downto 0)) & RW_addr(11 downto 4) & "0000";
                   tag_addr_low   <= tag_addr_1(3 downto 0);
                   tag_read_addr  <= tag_addr_1(12 downto 0);
                   isCommand      <= '0'; 
@@ -344,10 +373,10 @@ begin
                   ram_reqAddr    <= RW_addr(31 downto 0); 
                   tag_data_cmd   <= write_ena & '1' & std_logic_vector(RW_addr(31 downto 12)); -- default for fill
                   tag_addr_cmd   <= std_logic_vector(tag_addr_1(12 downto 4)); 
-                  writeback_addr <= unsigned(tag_q_b(19 downto 0)) & RW_addr(11 downto 4) & "0000";
+                  writeback_addr <= unsigned(tag_compare(19 downto 0)) & RW_addr(11 downto 4) & "0000";
                   
                   if ((read_ena = '1' or write_ena = '1') and read_hit = '0') then
-                     if (tag_q_b(21) = '1') then
+                     if (tag_compare(21) = '1') then
                         state          <= WRITEBACK1ADDR; 
                         tag_read_addr(3 downto 0) <= "0000";
                         fillNext       <= '1';
@@ -375,16 +404,16 @@ begin
                      state          <= COMMANDPROCESS;
                      isCommand      <= '1';
                      tag_read_addr(3 downto 0) <= "0000";
-                     writeTagValue  <= tag_q_b(20) & tag_q_b(21) & unsigned(tag_q_b(19 downto 0)); -- valid & dirty & 20 bit address
+                     writeTagValue  <= tag_compare(20) & tag_compare(21) & unsigned(tag_compare(19 downto 0)); -- valid & dirty & 20 bit address
                   
                      case (CacheCommand) is
                      
                         when 5x"01" => -- dcache index write back invalidate
-                           if (tag_q_b(21 downto 20) = "11") then
+                           if (tag_compare(21 downto 20) = "11") then
                               state          <= WRITEBACK1ADDR; 
                            end if;
                            tag_wren_cmd    <= '1';
-                           tag_data_cmd    <= "00" & tag_q_b(19 downto 0);
+                           tag_data_cmd    <= "00" & tag_compare(19 downto 0);
                            
                         when 5x"05" => -- dcache index load tag
                            writeTagEna <= '1';
@@ -394,7 +423,7 @@ begin
                            tag_data_cmd    <= TagLo_Dirty & TagLo_Valid & std_logic_vector(TagLo_Addr);
                            
                         when 5x"0D" => -- dcache create dirty exclusive
-                           if (tag_q_b(21) = '1' and (tag_q_b(20) = '0' or unsigned(tag_q_b(19 downto 0)) /= RW_addr(31 downto 12))) then
+                           if (tag_compare(21) = '1' and (tag_compare(20) = '0' or unsigned(tag_compare(19 downto 0)) /= RW_addr(31 downto 12))) then
                               state          <= WRITEBACK1ADDR; 
                            end if;
                            tag_wren_cmd    <= '1';
@@ -403,23 +432,23 @@ begin
                         when 5x"11" => -- dcache hit invalidate
                            if (read_hit = '1') then
                               tag_wren_cmd    <= '1';
-                              tag_data_cmd    <= "00" & tag_q_b(19 downto 0);
+                              tag_data_cmd    <= "00" & tag_compare(19 downto 0);
                            end if;
                         
                         when 5x"15" => -- dcache hit write back invalidate
                            if (read_hit = '1') then
-                              if (tag_q_b(21) = '1') then
+                              if (tag_compare(21) = '1') then
                                  state          <= WRITEBACK1ADDR; 
                               end if;
                               tag_wren_cmd    <= '1';
-                              tag_data_cmd    <= "00" & tag_q_b(19 downto 0);
+                              tag_data_cmd    <= "00" & tag_compare(19 downto 0);
                            end if;
                         
                         when 5x"19" => -- dcache hit write back
-                           if (read_hit = '1' and tag_q_b(21) = '1') then -- should this really check for dirty?
+                           if (read_hit = '1' and tag_compare(21) = '1') then -- should this really check for dirty?
                               state          <= WRITEBACK1ADDR; 
                               tag_wren_cmd   <= '1';
-                              tag_data_cmd   <= "01" & tag_q_b(19 downto 0);
+                              tag_data_cmd   <= "01" & tag_compare(19 downto 0);
                            end if;
                            
                         when others => null;
@@ -545,7 +574,7 @@ begin
             wait for 1 ns;
             if (read_ena  = '1' or write_ena = '1' or CacheCommandEna = '1') then
                export_AddrSave := "000" & tag_addr_1(28 downto 0);
-               export_TagSave  := unsigned(tag_q_b);
+               export_TagSave  := unsigned(tag_compare);
             end if; 
             
             if (state = FILL) then

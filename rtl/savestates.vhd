@@ -259,7 +259,6 @@ begin
                if (settle < SETTLECOUNT) then
                   settle <= settle + 1;
                elsif (RAMAddrNext >= (romcopy_size(26 downto 3) + 16#400000#)) then
-                  romcopy_active    <= '0';
                   state             <= WAITPAUSE;
                   settle            <= 0;
                elsif (romcopy_nearFull = '0') then
@@ -281,6 +280,7 @@ begin
                if (settle < 8) then
                   settle        <= settle + 1;
                else
+                  romcopy_active   <= '0';
                   savestate_pause  <= '1';
                   if (system_paused = '1') then
                      state                <= WAITIDLE;
