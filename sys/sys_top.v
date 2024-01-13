@@ -1325,8 +1325,6 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 `ifndef MISTER_DUAL_SDRAM
 	wire VGA_DISABLE;
 	wire [23:0] vgas_o;
-	wire [17:0] vgas_pwm_o;
-	reg [17:0] pwms_v;
 	wire vgas_hs, vgas_vs, vgas_cs;
 	vga_out vga_scaler_out
 	(
@@ -1343,9 +1341,6 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 	);
 
 	wire [23:0] vga_o, vga_o_t;
-	wire [17:0] vga_pwm_o;
-	reg [17:0] pwm_v;
-	reg [1:0] vga_pwm;
 	wire vga_hs, vga_vs, vga_cs, vga_hs_t, vga_vs_t, vga_cs_t;
 	vga_out vga_out
 	(
@@ -1359,6 +1354,28 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 		.hsync_o(vga_hs_t),
 		.vsync_o(vga_vs_t),
 		.csync_o(vga_cs_t)
+	);
+	
+	wire [17:0] pwm_o;
+	vga_pwm vga_pwm
+	(
+		.clk(clk_vid),
+		.csync_en(csync_en),
+		.hsync(vga_hs),
+		.csync(vga_cs),
+		.din(vga_o),
+		.dout(pwm_o)
+	);
+	
+	wire [17:0] pwms_o;
+	vga_pwm vgas_pwm
+	(
+		.clk(clk_vid),
+		.csync_en(csync_en),
+		.hsync(vgas_hs),
+		.csync(vgas_cs),
+		.din(vgas_o),
+		.dout(pwms_o)
 	);
 
 `ifndef MISTER_DISABLE_YC
@@ -1396,9 +1413,9 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 
 	assign VGA_VS = (VGA_EN | SW[3]) ? 1'bZ      : (((vga_fb | vga_scaler) ? (~vgas_vs ^ VS[12])                         : VGA_DISABLE ? 1'd1 : ~vga_vs) | csync_en);
 	assign VGA_HS = (VGA_EN | SW[3]) ? 1'bZ      :  ((vga_fb | vga_scaler) ? ((csync_en ? ~vgas_cs : ~vgas_hs) ^ HS[12]) : VGA_DISABLE ? 1'd1 : (csync_en ? ~vga_cs : ~vga_hs));
-	assign VGA_R  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_pwm_o[17:12]                               : VGA_DISABLE ? 6'd0 : vga_pwm_o[17:12];
-	assign VGA_G  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_pwm_o[11:6]                               : VGA_DISABLE ? 6'd0 : vga_pwm_o[11:6];
-	assign VGA_B  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? vgas_pwm_o[5:0]                                 : VGA_DISABLE ? 6'd0 : vga_pwm_o[5:0]  ;
+	assign VGA_R  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? pwms_o[17:12]                               : VGA_DISABLE ? 6'd0 : pwm_o[17:12];
+	assign VGA_G  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? pwms_o[11:6]                               : VGA_DISABLE ? 6'd0 : pwm_o[11:6];
+	assign VGA_B  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :   (vga_fb | vga_scaler) ? pwms_o[5:0]                                 : VGA_DISABLE ? 6'd0 : pwm_o[5:0]  ;
 `endif
 
 reg video_sync = 0;
@@ -1425,51 +1442,6 @@ always @(posedge clk_vid) begin
 
 	if(de_emu) hs_cnt <= 0;
 end
-
-/////////////////////////  RGB PWM  /////////////////////////////////////
-
-always @(posedge clk_vid) begin
-	if (pwm_en)
-		vga_pwm <= vga_pwm + 1'd1; 
-	else
-		vga_pwm <= 2'd3;
-	
-	if (vga_pwm < vga_o[17:16] && vga_o[23:18] < 6'b111111)
-		pwm_v[17:12] <= vga_o[23:18] + 1'd1;
-	else 	
-		pwm_v[17:12] <= vga_o[23:18];
-		
-	if (vga_pwm < vga_o[9:8] && vga_o[15:10] < 6'b111111)
-		pwm_v[11:6] <= vga_o[15:10] + 1'd1;
-	else 	
-		pwm_v[11:6] <= vga_o[15:10];
-		
-	if (vga_pwm < vga_o[1:0] && vga_o[7:2] < 6'b111111)
-		pwm_v[5:0] <= vga_o[7:2] + 1'd1;
-	else 	
-		pwm_v[5:0] <= vga_o[7:2];
-		
-	// VGA Scaler
-	
-	if (vga_pwm < vgas_o[17:16] && vgas_o[23:18] < 6'b111111)
-		pwms_v[17:12] <= vgas_o[23:18] + 1'd1;
-	else 	
-		pwms_v[17:12] <= vgas_o[23:18];
-		
-	if (vga_pwm < vgas_o[9:8] && vgas_o[15:10] < 6'b111111)
-		pwms_v[11:6] <= vgas_o[15:10] + 1'd1;
-	else 	
-		pwms_v[11:6] <= vgas_o[15:10];
-		
-	if (vga_pwm < vgas_o[1:0] && vgas_o[7:2] < 6'b111111)
-		pwms_v[5:0] <= vgas_o[7:2] + 1'd1;
-	else 	
-		pwms_v[5:0] <= vgas_o[7:2];
-	
-end
-
-assign vga_pwm_o = pwm_v; 
-assign vgas_pwm_o = pwms_v; 
 
 /////////////////////////  Audio output  ////////////////////////////////
 
@@ -1669,7 +1641,6 @@ wire [13:0] fb_stride;
 	assign fb_stride = 0;
 `endif
 
-wire       pwm_en;
 reg  [1:0] sl_r;
 wire [1:0] sl = sl_r;
 always @(posedge clk_sys) sl_r <= FB_EN ? 2'b00 : scanlines;
@@ -1795,9 +1766,7 @@ emu emu
 	.UART_DSR(uart_dtr),
 
 	.USER_OUT(user_out),
-	.USER_IN(user_in),
-	
-	.PWM_EN(pwm_en)
+	.USER_IN(user_in)
 );
 
 endmodule
