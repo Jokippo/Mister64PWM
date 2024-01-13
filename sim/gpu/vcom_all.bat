@@ -1,6 +1,7 @@
 vcom -93 -quiet -work  sim/mem ^
 ../system/src/mem/dpram.vhd ^
 ../system/src/mem/RamMLAB.vhd ^
+../system/src/mem/Shiftreg.vhd ^
 ../../rtl/SyncFifo.vhd ^
 ../../rtl/SyncFifoFallThrough.vhd ^
 ../../rtl/SyncFifoFallThroughMLAB.vhd ^
@@ -21,6 +22,7 @@ vcom -2008 -quiet -work sim/n64 ^
 ../../rtl/VI.vhd ^
 ../../rtl/RDP_package.vhd ^
 ../../rtl/RDP_command.vhd ^
+../../rtl/RDP_raster_perspcorr.vhd ^
 ../../rtl/RDP_raster.vhd ^
 ../../rtl/RDP_TexCoordClamp.vhd ^
 ../../rtl/RDP_TexTile.vhd ^
@@ -34,6 +36,7 @@ vcom -2008 -quiet -work sim/n64 ^
 ../../rtl/RDP_Zbuffer.vhd ^
 ../../rtl/RDP_DitherCalc.vhd ^
 ../../rtl/RDP_RGBACorrection.vhd ^
+../../rtl/RDP_PerspCorr.vhd ^
 ../../rtl/RDP_pipeline.vhd ^
 ../../rtl/RDP.vhd ^
 ../../rtl/SDRamMux.vhd ^

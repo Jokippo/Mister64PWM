@@ -351,6 +351,7 @@ package body pRDP is
          when 23 => write(line_out, string'("Comb: I ")); 
          when 24 => write(line_out, string'("FBMem: I ")); 
          when 25 => write(line_out, string'("RGBA: I ")); 
+         when 26 => write(line_out, string'("LODP: I ")); 
          when others => null;
       end case;
       

@@ -96,6 +96,10 @@ entity RDP is
       RSP2RDP_we           : in  std_logic;
       RSP2RDP_done         : in  std_logic;
       
+      -- synthesis translate_off
+      commandIsIdle        : out std_logic;
+      -- synthesis translate_on
+      
       SS_reset             : in  std_logic;
       SS_DataWrite         : in  std_logic_vector(63 downto 0);
       SS_Adr               : in  unsigned(0 downto 0);
@@ -365,6 +369,7 @@ architecture arch of RDP is
    signal export_Color              : rdp_export_type;
    signal export_RGBA               : rdp_export_type;
    signal export_LOD                : rdp_export_type;
+   signal export_LODP               : rdp_export_type;
    signal export_TexCoord           : rdp_export_type;
    signal export_TexFetch0          : rdp_export_type;
    signal export_TexFetch1          : rdp_export_type;
@@ -829,6 +834,7 @@ begin
       -- synthesis translate_off
       export_command_done     => export_command_done, 
       export_command_data     => export_command_data, 
+      commandIsIdle           => commandIsIdle,
       -- synthesis translate_on      
                               
       tile_Command            => tile_Command,         
@@ -1258,6 +1264,7 @@ begin
       export_Color            => export_Color,   
       export_RGBA             => export_RGBA,   
       export_LOD              => export_LOD,   
+      export_LODP             => export_LODP,   
       export_TexCoord         => export_TexCoord,   
       export_TexFetch0        => export_TexFetch0,   
       export_TexFetch1        => export_TexFetch1,   
@@ -1600,6 +1607,7 @@ begin
          variable export_copyData   : unsigned(63 downto 0);
          variable useTexture        : std_logic;
          variable useTexture2       : std_logic;
+         variable useLOD            : std_logic;
          variable texfetch_count    : integer;
          variable texcolor_count    : integer;
       begin
@@ -1677,7 +1685,17 @@ begin
                texcolor_count := tracecounts_out(13);
                
                if (useTexture = '1') then
-                  --export_gpu32(19, tracecounts_out(19), export_LOD,      outfile); tracecounts_out(19) <= tracecounts_out(19) + 1;
+               
+                  useLOD := settings_otherModes.texLod;
+                  if (settings_combineMode.combine_mul_R_1 = 13)                                          then useLOD := '1'; end if;
+                  if (settings_combineMode.combine_mul_A_1 = 1)                                           then useLOD := '1'; end if;
+                  if (settings_otherModes.cycleType = "01" and settings_combineMode.combine_mul_R_0 = 13) then useLOD := '1'; end if;
+                  if (settings_otherModes.cycleType = "01" and settings_combineMode.combine_mul_A_0 = 0)  then useLOD := '1'; end if;
+                  if (useLOD = '1') then
+                     export_gpu32(19, tracecounts_out(19), export_LOD,      outfile); tracecounts_out(19) <= tracecounts_out(19) + 1;
+                     export_gpu32(26, tracecounts_out(26), export_LODP,     outfile); tracecounts_out(26) <= tracecounts_out(26) + 1;
+                  end if;
+                  
                   export_gpu32(11, tracecounts_out(11), export_TexCoord, outfile); tracecounts_out(11) <= tracecounts_out(11) + 1;
                   --if (settings_otherModes.sampleType = '1' or settings_otherModes.enTlut = '1') then
                   --   export_gpu32(7, texfetch_count + 0, export_TexFetch0, outfile);

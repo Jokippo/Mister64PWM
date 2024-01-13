@@ -21,9 +21,6 @@ entity RDP_Zbuffer is
       offX                    : in  unsigned(1 downto 0);
       offY                    : in  unsigned(1 downto 0);
       
-      -- STAGE_PERSPCOR
-      cvgCount                : in  unsigned(3 downto 0);
-      
       -- STAGE_TEXCOORD
       
       -- STAGE_TEXFETCH

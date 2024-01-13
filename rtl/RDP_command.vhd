@@ -29,6 +29,7 @@ entity RDP_command is
       -- synthesis translate_off
       export_command_done     : out std_logic := '0'; 
       export_command_data     : out unsigned(63 downto 0); 
+      commandIsIdle           : out std_logic;
       -- synthesis translate_on
       
       tile_Command            : out std_logic_vector(2 downto 0) := (others => '0');
@@ -134,6 +135,7 @@ begin
    -- synthesis translate_off
    export_command_done <=  '1' when (state = EVALCOMMAND) else '0';                 
    export_command_data <= CommandData;
+   commandIsIdle       <= '1' when (state = IDLE) else '0';
    -- synthesis translate_on
    
    process (clk1x)

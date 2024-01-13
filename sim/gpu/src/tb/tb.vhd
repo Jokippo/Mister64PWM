@@ -208,14 +208,12 @@ begin
       rdram_done           => rdram_done(DDR3MUX_RDP),   
       ddr3_DOUT            => DDRAM_DOUT,       
       ddr3_DOUT_READY      => DDRAM_DOUT_READY, 
-            
-      fifoout_reset        => rdpfifo_reset,   
+              
       fifoout_Din          => rdpfifo_Din,     
       fifoout_Wr           => rdpfifo_Wr,      
       fifoout_nearfull     => rdpfifo_nearfull,
       fifoout_empty        => rdpfifo_empty,      
-      
-      fifooutZ_reset       => rdpfifoZ_reset,   
+       
       fifooutZ_Din         => rdpfifoZ_Din,     
       fifooutZ_Wr          => rdpfifoZ_Wr,      
       fifooutZ_nearfull    => rdpfifoZ_nearfull,
@@ -232,13 +230,11 @@ begin
       sdram_dataRead       => sdram_dataRead,
       sdram_valid          => (sdram_done and sdram_rnw),    
       
-      rdp9fifo_reset       => rdp9fifo_reset,   
       rdp9fifo_Din         => rdp9fifo_Din,     
       rdp9fifo_Wr          => rdp9fifo_Wr,      
       rdp9fifo_nearfull    => rdp9fifo_nearfull,
       rdp9fifo_empty       => rdp9fifo_empty,
       
-      rdp9fifoZ_reset      => rdp9fifoZ_reset,   
       rdp9fifoZ_Din        => rdp9fifoZ_Din,     
       rdp9fifoZ_Wr         => rdp9fifoZ_Wr,      
       rdp9fifoZ_nearfull   => rdp9fifoZ_nearfull,
@@ -257,7 +253,7 @@ begin
       RSP2RDP_we           => RSP2RDP_we,  
       RSP2RDP_done         => RSP2RDP_done,  
       
-      commandIsIdle_out    => commandIsIdle_out,
+      commandIsIdle        => commandIsIdle_out,
       
       SS_reset             => SS_reset,
       SS_DataWrite         => SS_DataWrite,
@@ -287,6 +283,7 @@ begin
       VI_GAMMAOFF          => '1',
       VI_NOISEOFF          => '1',
       VI_DEDITHEROFF       => '1',
+      VI_DEDITHERFORCE     => '0',
       VI_AAOFF             => '1',
       VI_DIVOTOFF          => '1',
       
@@ -380,13 +377,11 @@ begin
       rspfifo_nearfull => open,
       rspfifo_empty    => open,
       
-      rdpfifo_reset    => rdpfifo_reset,   
       rdpfifo_Din      => rdpfifo_Din,
       rdpfifo_Wr       => rdpfifo_Wr,       
       rdpfifo_nearfull => rdpfifo_nearfull, 
       rdpfifo_empty    => rdpfifo_empty,
 
-      rdpfifoZ_reset   => rdpfifoZ_reset,   
       rdpfifoZ_Din     => rdpfifoZ_Din,
       rdpfifoZ_Wr      => rdpfifoZ_Wr,       
       rdpfifoZ_nearfull=> rdpfifoZ_nearfull, 
@@ -449,17 +444,19 @@ begin
       sdramMux_done        => sdramMux_done,      
       sdramMux_dataRead    => sdramMux_dataRead,
       
-      rdp9fifo_reset       => rdp9fifo_reset,   
       rdp9fifo_Din         => rdp9fifo_Din,     
       rdp9fifo_Wr          => rdp9fifo_Wr,      
       rdp9fifo_nearfull    => rdp9fifo_nearfull,
       rdp9fifo_empty       => rdp9fifo_empty,
       
-      rdp9fifoZ_reset      => rdp9fifoZ_reset,   
       rdp9fifoZ_Din        => rdp9fifoZ_Din,     
       rdp9fifoZ_Wr         => rdp9fifoZ_Wr,      
       rdp9fifoZ_nearfull   => rdp9fifoZ_nearfull,
-      rdp9fifoZ_empty      => rdp9fifoZ_empty
+      rdp9fifoZ_empty      => rdp9fifoZ_empty,
+      
+      romcopy_dataNew      => '0',   
+      romcopy_dataRead     => 64x"0",         
+      romcopy_active       => '0'
    );
    
    sdramMux_request(0 to 2) <= "000";
