@@ -26,6 +26,7 @@ entity RDP is
       
       DISABLEFILTER        : in  std_logic;
       DISABLEDITHER        : in  std_logic;
+      DISABLELOD           : in  std_logic;
       write9               : in  std_logic;
       read9                : in  std_logic;
       wait9                : in  std_logic;
@@ -281,14 +282,21 @@ architecture arch of RDP is
    signal pipeIn_cvgValue           : unsigned(7 downto 0);
    signal pipeIn_offX               : unsigned(1 downto 0);
    signal pipeIn_offY               : unsigned(1 downto 0);
+   signal pipeInColorFull           : tcolor4_s32;
    signal pipeIn_S                  : signed(15 downto 0);
    signal pipeIn_T                  : signed(15 downto 0);
-   signal pipeInColorFull           : tcolor4_s32;
    signal pipeInWCarry              : std_logic;
    signal pipeInWShift              : integer range 0 to 14;
    signal pipeInWNormLow            : unsigned(7 downto 0);
    signal pipeInWtemppoint          : signed(15 downto 0);
-   signal pipeInWtempslope          : unsigned(7 downto 0);
+   signal pipeInWtempslope          : unsigned(7 downto 0);   
+   signal pipeIn_S_next             : signed(15 downto 0);
+   signal pipeIn_T_next             : signed(15 downto 0);
+   signal pipeInWCarry_next         : std_logic;
+   signal pipeInWShift_next         : integer range 0 to 14;
+   signal pipeInWNormLow_next       : unsigned(7 downto 0);
+   signal pipeInWtemppoint_next     : signed(15 downto 0);
+   signal pipeInWtempslope_next     : unsigned(7 downto 0);
    signal pipeIn_Z                  : signed(21 downto 0);
    signal pipeIn_dzPix              : unsigned(15 downto 0);
    signal pipeIn_copySize           : unsigned(3 downto 0);
@@ -1014,6 +1022,13 @@ begin
       pipeInWNormLow          => pipeInWNormLow, 
       pipeInWtemppoint        => pipeInWtemppoint,
       pipeInWtempslope        => pipeInWtempslope,
+      pipeIn_S_next           => pipeIn_S_next,        
+      pipeIn_T_next           => pipeIn_T_next,        
+      pipeInWCarry_next       => pipeInWCarry_next,    
+      pipeInWShift_next       => pipeInWShift_next,    
+      pipeInWNormLow_next     => pipeInWNormLow_next,  
+      pipeInWtemppoint_next   => pipeInWtemppoint_next,
+      pipeInWtempslope_next   => pipeInWtempslope_next,
       pipeIn_Z                => pipeIn_Z,
       pipeIn_dzPix            => pipeIn_dzPix,
       pipeIn_copySize         => pipeIn_copySize,
@@ -1193,6 +1208,7 @@ begin
       
       DISABLEFILTER           => DISABLEFILTER,
       DISABLEDITHER           => DISABLEDITHER,
+      DISABLELOD              => DISABLELOD,
 
       errorCombine            => errorCombine,
       error_combineAlpha      => error_combineAlpha,
@@ -1233,6 +1249,13 @@ begin
       pipeInWNormLow          => pipeInWNormLow, 
       pipeInWtemppoint        => pipeInWtemppoint,
       pipeInWtempslope        => pipeInWtempslope,
+      pipeIn_S_next           => pipeIn_S_next,        
+      pipeIn_T_next           => pipeIn_T_next,        
+      pipeInWCarry_next       => pipeInWCarry_next,    
+      pipeInWShift_next       => pipeInWShift_next,    
+      pipeInWNormLow_next     => pipeInWNormLow_next,  
+      pipeInWtemppoint_next   => pipeInWtemppoint_next,
+      pipeInWtempslope_next   => pipeInWtempslope_next,
       pipeIn_Z                => pipeIn_Z,
       pipeIn_dzPix            => pipeIn_dzPix,
       pipeIn_copySize         => pipeIn_copySize,
@@ -1774,7 +1797,7 @@ begin
                tracecounts_out(7)  <= texfetch_count;
                tracecounts_out(13) <= texcolor_count;
                
-               export_gpu32(23, tracecounts_out(23), export_Comb    , outfile); tracecounts_out(23) <= tracecounts_out(23) + 1;
+               export_gpu64(23, tracecounts_out(23), export_Comb    , outfile); tracecounts_out(23) <= tracecounts_out(23) + 1;
                if (settings_otherModes.imageRead = '1') then
                   export_gpu32(24, tracecounts_out(24), export_FBMem   , outfile); tracecounts_out(24) <= tracecounts_out(24) + 1;
                end if;               

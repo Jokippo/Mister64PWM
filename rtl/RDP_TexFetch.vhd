@@ -213,6 +213,9 @@ architecture arch of RDP_TexFetch is
    
    signal tex_color_select       : tcolor3_u8;
    signal tex_alpha_select       : unsigned(7 downto 0);
+      
+   signal tex_color_next2        : tcolor3_u8;
+   signal tex_alpha_next2        : unsigned(7 downto 0);
    
    -- synthesis translate_off
    signal exportNext_TexFt_addr  : tcolor4_u32;
@@ -745,10 +748,17 @@ begin
             tex_color_out(2) <= tex_color_select(2);
             tex_alpha_out    <= tex_alpha_select;
             
-            tex2_color_out(0) <= tex_color_out(0);
-            tex2_color_out(1) <= tex_color_out(1);
-            tex2_color_out(2) <= tex_color_out(2);
-            tex2_alpha_out    <= tex_alpha_out;   
+            if (mode2 = '1') then
+               tex2_color_out(0) <= tex_color_next2(0);
+               tex2_color_out(1) <= tex_color_next2(1);
+               tex2_color_out(2) <= tex_color_next2(2);
+               tex2_alpha_out    <= tex_alpha_next2;
+            else
+               tex2_color_out(0) <= tex_color_out(0);
+               tex2_color_out(1) <= tex_color_out(1);
+               tex2_color_out(2) <= tex_color_out(2);
+               tex2_alpha_out    <= tex_alpha_out;   
+            end if;
             
             -- synthesis translate_off
             export_TexFt_addr <= exportNext_TexFt_addr; 
@@ -762,10 +772,15 @@ begin
          
          if (step2 = '1') then
          
-            tex_color_out(0) <= tex_color_select(0);
-            tex_color_out(1) <= tex_color_select(1);
-            tex_color_out(2) <= tex_color_select(2);
-            tex_alpha_out    <= tex_alpha_select;
+            tex_color_next2(0) <= tex_color_select(0);
+            tex_color_next2(1) <= tex_color_select(1);
+            tex_color_next2(2) <= tex_color_select(2);
+            tex_alpha_next2    <= tex_alpha_select;
+         
+            tex_color_out(0) <= tex_color_next2(0);
+            tex_color_out(1) <= tex_color_next2(1);
+            tex_color_out(2) <= tex_color_next2(2);
+            tex_alpha_out    <= tex_alpha_next2;   
          
             tex2_color_out(0) <= tex_color_out(0);
             tex2_color_out(1) <= tex_color_out(1);

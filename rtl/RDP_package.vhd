@@ -348,7 +348,6 @@ package body pRDP is
          when 16 => write(line_out, string'("LoadFetch: I ")); 
          when 18 => write(line_out, string'("LoadValue: I "));  
          when 19 => write(line_out, string'("LOD: I ")); 
-         when 23 => write(line_out, string'("Comb: I ")); 
          when 24 => write(line_out, string'("FBMem: I ")); 
          when 25 => write(line_out, string'("RGBA: I ")); 
          when 26 => write(line_out, string'("LODP: I ")); 
@@ -379,6 +378,7 @@ package body pRDP is
       case (id) is
          when 14 => write(line_out, string'("CopyFetch: I ")); 
          when 17 => write(line_out, string'("LoadData: I ")); 
+         when 23 => write(line_out, string'("Comb: I ")); 
          when others => null;
       end case;
       

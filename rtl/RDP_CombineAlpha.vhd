@@ -23,7 +23,7 @@ entity RDP_CombineAlpha is
       pipeInColor             : in  tcolor4_u9;
       tex_alpha               : in  unsigned(7 downto 0);
       tex2_alpha              : in  unsigned(7 downto 0);
-      lod_frac                : in  unsigned(7 downto 0);
+      lod_frac                : in  unsigned(8 downto 0);
       cvgCount                : in  unsigned(3 downto 0);
       cvgFB                   : in  unsigned(2 downto 0);
       ditherAlpha             : in  unsigned(2 downto 0);
@@ -96,7 +96,7 @@ begin
       
       alpha_mul <= (others => '0');
       case (to_integer(mode_mul)) is
-         when 0 => alpha_mul <= "00" & signed(lod_frac);
+         when 0 => alpha_mul <= resize(signed(lod_frac),10);
          when 1 => alpha_mul <= "00" & signed(tex_alpha);
          when 2 => alpha_mul <= "00" & signed(tex2_alpha);
          when 3 => alpha_mul <= "00" & signed(settings_primcolor.prim_A);

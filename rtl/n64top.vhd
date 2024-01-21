@@ -49,6 +49,7 @@ entity n64top is
       DDR3SLOW                : in  std_logic_vector(3 downto 0);
       DISABLEFILTER           : in  std_logic;       
       DISABLEDITHER           : in  std_logic;       
+      DISABLELOD              : in  std_logic;       
       
       write9                  : in  std_logic;
       read9                   : in  std_logic;
@@ -654,6 +655,7 @@ begin
       
       DISABLEFILTER        => DISABLEFILTER,
       DISABLEDITHER        => DISABLEDITHER,
+      DISABLELOD           => DISABLELOD,
       write9               => write9,
       read9                => read9,
       wait9                => wait9,

@@ -315,6 +315,7 @@ parameter CONF_STR = {
    "P1-;",
    "P1O[30],Texture Filter,Original,Off;",
    "P1O[31],Dithering,Original,Off;",
+   "P1O[34],LOD Textures,Original,Off;",
    "P1O[32],VI Bilinear,Original,Off;",
    "P1O[33],VI Gamma,Original,Off;",
    "P1O[88:87],VI Dedither,Original,Off,Force;",
@@ -714,6 +715,7 @@ n64top
    .DDR3SLOW(status[23:20]),
    .DISABLEFILTER(status[30]),
    .DISABLEDITHER(status[31]),
+   .DISABLELOD(status[34]),
    
    .write9(!status[11]), 
    .read9(!status[12]),  

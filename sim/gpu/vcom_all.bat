@@ -37,6 +37,7 @@ vcom -2008 -quiet -work sim/n64 ^
 ../../rtl/RDP_DitherCalc.vhd ^
 ../../rtl/RDP_RGBACorrection.vhd ^
 ../../rtl/RDP_PerspCorr.vhd ^
+../../rtl/RDP_LOD.vhd ^
 ../../rtl/RDP_pipeline.vhd ^
 ../../rtl/RDP.vhd ^
 ../../rtl/SDRamMux.vhd ^

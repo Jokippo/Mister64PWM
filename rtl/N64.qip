@@ -59,6 +59,7 @@ set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) RDP_Zbuffe
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) RDP_DitherCalc.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) RDP_RGBACorrection.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) RDP_PerspCorr.vhd ]
+set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) RDP_LOD.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) RDP_pipeline.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) RDP.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) DDR3Mux.vhd ]

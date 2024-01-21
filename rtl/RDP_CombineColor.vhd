@@ -27,9 +27,13 @@ entity RDP_CombineColor is
       tex_alpha               : in  unsigned(7 downto 0);      
       texture2_color          : in  tcolor3_u8;
       tex2_alpha              : in  unsigned(7 downto 0);
-      lod_frac                : in  unsigned(7 downto 0);
+      lod_frac                : in  unsigned(8 downto 0);
       combine_alpha           : in  signed(9 downto 0);
       random2                 : in  unsigned(1 downto 0);
+      
+      -- synthesis translate_off
+      export_Comb_R_All       : out unsigned(63 downto 0);
+      -- synthesis translate_on
 
       combine_color           : out tcolor3_u8
    );
@@ -115,7 +119,7 @@ begin
             when 6 => color_sub2(i) <= x"00" & signed(keyCenter(i));
             when 7 => color_sub2(i) <= 7x"00" & signed(settings_Convert.K4);
             when others => null;
-         end case;
+         end case;    
          
          color_mul(i) <= (others => '0');
          case (to_integer(mode_mul)) is
@@ -132,7 +136,7 @@ begin
             when 10 => color_mul(i) <= x"00" & signed(settings_primcolor.prim_A);
             when 11 => color_mul(i) <= 7x"00" & signed(pipeInColor(3));
             when 12 => color_mul(i) <= x"00" & signed(settings_envcolor.env_A);
-            when 13 => color_mul(i) <= x"00" & signed(lod_frac);
+            when 13 => color_mul(i) <= resize(signed(lod_frac), 16);
             when 14 => color_mul(i) <= x"00" & signed(settings_primcolor.prim_levelFrac);
             when 15 => color_mul(i) <= 7x"00" & signed(settings_Convert.K5);
             when others => null;
@@ -194,6 +198,10 @@ begin
                end if;
                
             end loop;
+            
+            -- synthesis translate_off
+            export_Comb_R_All <= unsigned(color_sub1(0)) & unsigned(color_sub2(0)) & unsigned(color_mul(0)) & unsigned(color_add(0));
+            -- synthesis translate_on
             
          end if;
          

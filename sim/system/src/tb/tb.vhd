@@ -147,6 +147,7 @@ begin
       DDR3SLOW              => "0000",
       DISABLEFILTER         => '0',
       DISABLEDITHER         => '0',
+      DISABLELOD            => '0',
       
       write9                => '1',
       read9                 => '1',

@@ -22,13 +22,7 @@ entity RDP_Zbuffer is
       offY                    : in  unsigned(1 downto 0);
       
       -- STAGE_TEXCOORD
-      
-      -- STAGE_TEXFETCH
       old_Z_mem               : in unsigned(17 downto 0);
-      
-      -- STAGE_TEXREAD
-      
-      -- STAGE_PALETTE
       
       -- STAGE_COMBINER
       cvg_overflow            : in  std_logic;
@@ -65,14 +59,18 @@ architecture arch of RDP_Zbuffer is
    signal new_z_calc        : signed(26 downto 0);
    signal new_z_selected    : signed(18 downto 0);
       
+   signal new_z_p           : unsigned(17 downto 0) := (others => '0');
+    
+   -- STAGE_TEXCOORD
    signal new_z             : unsigned(17 downto 0) := (others => '0');
-      
+    
    -- STAGE_TEXCOORD
    signal new_z_1           : unsigned(17 downto 0)  := (others => '0');   
+   signal old_Z_mem_1       : unsigned(17 downto 0)  := (others => '0');
    
    -- STAGE_TEXFETCH     
    signal new_z_2           : unsigned(17 downto 0)  := (others => '0');
-   signal old_Z_mem_1       : unsigned(17 downto 0)  := (others => '0');
+   signal old_Z_mem_2       : unsigned(17 downto 0)  := (others => '0');
    
    -- STAGE_TEXREAD
    signal oldZ_mantissa     : unsigned(10 downto 0);
@@ -159,12 +157,26 @@ begin
          if (trigger = '1') then
          
             case (new_z_selected(18 downto 17)) is
-               when "00" | "01" => new_z <= unsigned(new_z_selected(17 downto 0));
-               when "10"        => new_z <= (others => '1');
-               when "11"        => new_z <= (others => '0');
+               when "00" | "01" => new_z_p <= unsigned(new_z_selected(17 downto 0));
+               when "10"        => new_z_p <= (others => '1');
+               when "11"        => new_z_p <= (others => '0');
                when others      => null;
             end case;
 
+         end if;
+         
+      end if;
+   end process;
+   
+   -- STAGE_LOD
+   process (clk1x)
+   begin
+      if rising_edge(clk1x) then
+         
+         if (trigger = '1') then
+         
+            new_z <= new_z_p;
+            
          end if;
          
       end if;
@@ -178,6 +190,7 @@ begin
          if (trigger = '1') then
          
             new_z_1 <= unsigned(new_z);
+            old_Z_mem_1 <= old_Z_mem;
 
          end if;
          
@@ -192,7 +205,7 @@ begin
          if (trigger = '1') then
          
             new_z_2     <= new_z_1;
-            old_Z_mem_1 <= old_Z_mem;
+            old_Z_mem_2 <= old_Z_mem_1;
 
          end if;
          
@@ -200,14 +213,14 @@ begin
    end process;
    
    -- STAGE_TEXREAD
-   oldZ_mantissa   <= old_Z_mem_1(12 downto 2);
-   oldZ_shift      <= to_unsigned(6, 3) - old_Z_mem_1(15 downto 13) when (old_Z_mem_1(15 downto 13) < 7) else (others => '0');
+   oldZ_mantissa   <= old_Z_mem_2(12 downto 2);
+   oldZ_shift      <= to_unsigned(6, 3) - old_Z_mem_2(15 downto 13) when (old_Z_mem_2(15 downto 13) < 7) else (others => '0');
    oldZ_mantShifted <= ("000000" & oldZ_mantissa) sll to_integer(oldZ_shift);
-   oldZ_addValue   <= oldAddTable(to_integer(old_Z_mem_1(15 downto 13)));
+   oldZ_addValue   <= oldAddTable(to_integer(old_Z_mem_2(15 downto 13)));
    
-   old_dz_mem      <= old_Z_mem_1(1 downto 0) & old_Z_mem_1(17 downto 16);
+   old_dz_mem      <= old_Z_mem_2(1 downto 0) & old_Z_mem_2(17 downto 16);
    old_dz_raw      <= to_unsigned(1, 16) sll to_integer(old_dz_mem);
-   dzmin           <= shift_right(to_unsigned(16, 5), to_integer(old_Z_mem_1(14 downto 13)));
+   dzmin           <= shift_right(to_unsigned(16, 5), to_integer(old_Z_mem_2(14 downto 13)));
    
    process (clk1x)
    begin
@@ -220,7 +233,7 @@ begin
             old_z   <= oldZ_mantShifted + oldZ_addValue;
  
             planar <= '0';
-            if (old_Z_mem_1(15 downto 13) < 3) then
+            if (old_Z_mem_2(15 downto 13) < 3) then
                if (old_dz_raw /= x"8000") then
                   if (to_integer(old_dz_raw(14 downto 0) & '0') < to_integer(dzmin)) then
                      old_dz <= 11x"0" & dzmin;

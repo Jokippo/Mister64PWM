@@ -85,6 +85,13 @@ entity RDP_raster is
       pipeInWNormLow          : out unsigned(7 downto 0) := (others => '0');
       pipeInWtemppoint        : out signed(15 downto 0) := (others => '0');
       pipeInWtempslope        : out unsigned(7 downto 0) := (others => '0');
+      pipeIn_S_next           : out signed(15 downto 0) := (others => '0');
+      pipeIn_T_next           : out signed(15 downto 0) := (others => '0');
+      pipeInWCarry_next       : out std_logic := '0';
+      pipeInWShift_next       : out integer range 0 to 14 := 0;
+      pipeInWNormLow_next     : out unsigned(7 downto 0) := (others => '0');
+      pipeInWtemppoint_next   : out signed(15 downto 0) := (others => '0');
+      pipeInWtempslope_next   : out unsigned(7 downto 0) := (others => '0');
       pipeIn_Z                : out signed(21 downto 0) := (others => '0');
       pipeIn_dzPix            : out unsigned(15 downto 0) := (others => '0');
       pipeIn_copySize         : out unsigned(3 downto 0) := (others => '0');
@@ -257,6 +264,7 @@ architecture arch of RDP_raster is
    ); 
    signal linestate  : tlineState := LINEIDLE;    
    
+   signal cycle2calc       : std_logic := '0';
    signal drawLineDone     : std_logic;
    signal line_posY        : unsigned(11 downto 0) := (others => '0');
    signal line_posX        : unsigned(11 downto 0) := (others => '0');
@@ -309,12 +317,28 @@ architecture arch of RDP_raster is
    signal line_DwDx        : signed(31 downto 0) := (others => '0');
    signal line_DzDx        : signed(31 downto 0) := (others => '0'); 
    
+   signal pixel_next_S     : signed(31 downto 0) := (others => '0');
+   signal pixel_next_T     : signed(31 downto 0) := (others => '0');
+   signal pixel_next_W     : signed(31 downto 0) := (others => '0');
+   
    -- perspective correction
    signal WCarry_current     : std_logic;
    signal WShift_current     : integer range 0 to 14;
    signal WNormLow_current   : unsigned(7 downto 0);
    signal Wtemppoint_current : signed(15 downto 0);
    signal Wtempslope_current : unsigned(7 downto 0);
+
+   signal pixel_next_S_Y     : signed(31 downto 0) := (others => '0');
+   signal pixel_next_T_Y     : signed(31 downto 0) := (others => '0');
+   signal pixel_next_W_Y     : signed(31 downto 0) := (others => '0');   
+   
+   signal pixel_W_muxed      : signed(31 downto 0) := (others => '0');   
+   
+   signal WCarry_next        : std_logic;
+   signal WShift_next        : integer range 0 to 14;
+   signal WNormLow_next      : unsigned(7 downto 0);
+   signal Wtemppoint_next    : signed(15 downto 0);
+   signal Wtempslope_next    : unsigned(7 downto 0);
    
    -- comb calculation
    signal calcPixelAddr    : unsigned(25 downto 0);
@@ -814,18 +838,33 @@ begin
    offx <= cvgOffXTable(to_integer(maskx));
    
    -- perspective correction
+   pixel_next_S <= pixel_Texture_S + line_DsDx;
+   pixel_next_T <= pixel_Texture_T + line_DtDx;
+   pixel_next_W <= pixel_Texture_W + line_DwDx;
+   
    iRDP_raster_perspcorr_current : entity work.RDP_raster_perspcorr
    port map 
-   (
-      clk1x              => clk1x,           
+   (         
       pixel_Texture_W    => pixel_Texture_W,                  
       WCarry             => WCarry_current,    
       WShift             => WShift_current,    
       WNormLow           => WNormLow_current,  
       Wtemppoint         => Wtemppoint_current,
       Wtempslope         => Wtempslope_current
-   );
+   );       
 
+   pixel_W_muxed <= pixel_next_W when (linestate = DRAWLINE) else pixel_next_W_Y;
+
+   iRDP_raster_perspcorr_next : entity work.RDP_raster_perspcorr
+   port map 
+   (        
+      pixel_Texture_W    => pixel_W_muxed,                  
+      WCarry             => WCarry_next,    
+      WShift             => WShift_next,    
+      WNormLow           => WNormLow_next,  
+      Wtemppoint         => Wtemppoint_next,
+      Wtempslope         => Wtempslope_next
+   );
 
    
    process (clk1x)
@@ -835,6 +874,7 @@ begin
          pipeIn_trigger <= '0';
          fillWrite      <= '0';
          error_drawMode <= '0';
+         cycle2calc     <= '0';
          
          if (reset = '1') then
             
@@ -987,12 +1027,19 @@ begin
                      
                   pipeIn_S          <= pixel_Texture_S(31 downto 16);
                   pipeIn_T          <= pixel_Texture_T(31 downto 16);
-                  
                   pipeInWCarry      <= WCarry_current;    
                   pipeInWShift      <= WShift_current;    
                   pipeInWNormLow    <= WNormLow_current;  
                   pipeInWtemppoint  <= Wtemppoint_current;
                   pipeInWtempslope  <= Wtempslope_current;
+                  
+                  pipeIn_S_next         <= pixel_next_S(31 downto 16);
+                  pipeIn_T_next         <= pixel_next_T(31 downto 16);
+                  pipeInWCarry_next     <= WCarry_next;    
+                  pipeInWShift_next     <= WShift_next;    
+                  pipeInWNormLow_next   <= WNormLow_next;  
+                  pipeInWtemppoint_next <= Wtemppoint_next;
+                  pipeInWtempslope_next <= Wtempslope_next;
 
                   pipeIn_Z          <= pixel_Z(31 downto 10);
                   if (settings_otherModes.zSourceSel = '1') then
@@ -1012,7 +1059,8 @@ begin
                   end if;
                   
                   if (settings_otherModes.cycleType = "01") then
-                     linestate <= DRAWLINESTEP2;
+                     linestate  <= DRAWLINESTEP2;
+                     cycle2calc <= '1';
                   end if;
                   
                   if (drawLineDone = '1') then
@@ -1035,10 +1083,14 @@ begin
                   pixel_Color_G     <= pixel_Color_G   + line_DgDx;
                   pixel_Color_B     <= pixel_Color_B   + line_DbDx;
                   pixel_Color_A     <= pixel_Color_A   + line_DaDx;
-                  pixel_Texture_S   <= pixel_Texture_S + line_DsDx;
-                  pixel_Texture_T   <= pixel_Texture_T + line_DtDx;
-                  pixel_Texture_W   <= pixel_Texture_W + line_DwDx;
+                  pixel_Texture_S   <= pixel_next_S; --pixel_Texture_S + line_DsDx; -> precalc above
+                  pixel_Texture_T   <= pixel_next_T; --pixel_Texture_T + line_DtDx; -> precalc above
+                  pixel_Texture_W   <= pixel_next_W; --pixel_Texture_W + line_DwDx; -> precalc above
                   pixel_Z           <= pixel_Z         + line_DzDx;
+                  
+                  pixel_next_S_Y    <= pixel_Texture_S + (settings_poly.tex_DsDy(31 downto 15) & 15x"0");       
+                  pixel_next_T_Y    <= pixel_Texture_T + (settings_poly.tex_DtDy(31 downto 15) & 15x"0");       
+                  pixel_next_W_Y    <= pixel_Texture_W + (settings_poly.tex_DwDy(31 downto 15) & 15x"0");
                   
                when DRAWLINESTEP2 =>
                   if (stall_raster = '0') then
@@ -1107,6 +1159,16 @@ begin
                   end if;
 
             end case; -- linestate
+            
+            if (cycle2calc = '1') then
+               pipeIn_S_next         <= pixel_next_S_Y(31 downto 16);
+               pipeIn_T_next         <= pixel_next_T_Y(31 downto 16);
+               pipeInWCarry_next     <= WCarry_next;    
+               pipeInWShift_next     <= WShift_next;    
+               pipeInWNormLow_next   <= WNormLow_next;  
+               pipeInWtemppoint_next <= Wtemppoint_next;
+               pipeInWtempslope_next <= Wtempslope_next;
+            end if;
             
          end if;
       end if;

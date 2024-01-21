@@ -5,10 +5,7 @@ use IEEE.numeric_std.all;
 entity RDP_raster_perspcorr is
    port 
    (
-      clk1x              : in  std_logic;
-      
       pixel_Texture_W    : in  signed(31 downto 0) := (others => '0');
-      
       WCarry             : out std_logic := '0';
       WShift             : out integer range 0 to 14 := 0;
       WNormLow           : out unsigned(7 downto 0) := (others => '0');
