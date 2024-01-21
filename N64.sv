@@ -324,7 +324,7 @@ parameter CONF_STR = {
    "P1-;",
    "P1O[2],Error Overlay,Off,On;",
    "P1O[28],FPS Overlay,Off,On;",
-   "P1O[101],VGA PWM,Off,On;",
+   //"P1O[101],VGA PWM,Off,On;",
 	
    "P2,System settings;",
 	"P2-;",

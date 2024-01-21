@@ -2,6 +2,7 @@
 module vga_pwm
 (
 	input         clk,
+	input         pwm_en,
 	input         csync_en,
 
 	input         hsync,
