@@ -109,13 +109,15 @@ begin
       clamp_index <= unsigned(relative(15 downto 5));
       frac        <= unsigned(relative(4 downto 0));
    
-      if (tile_clamp = '1' or tile_mask = 0) then
-         if (to_integer(shifted(15 downto 3)) >= to_integer(tile_max)) then
-            clamp_index <= clampMax(clampMax'left) & clampMax;
-            frac        <= (others => '0');
-         elsif (relative < 0) then
-            clamp_index <= (others => '0');
-            frac        <= (others => '0');
+      if (settings_otherModes.cycleType(1) = '0') then -- only in non-copy mode
+         if (tile_clamp = '1' or tile_mask = 0) then
+            if (to_integer(shifted(15 downto 3)) >= to_integer(tile_max)) then
+               clamp_index <= clampMax(clampMax'left) & clampMax;
+               frac        <= (others => '0');
+            elsif (relative < 0) then
+               clamp_index <= (others => '0');
+               frac        <= (others => '0');
+            end if;
          end if;
       end if;
       

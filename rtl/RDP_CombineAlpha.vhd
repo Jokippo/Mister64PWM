@@ -57,6 +57,12 @@ architecture arch of RDP_CombineAlpha is
    signal cvgCount_select    : unsigned(3 downto 0);
 
    signal combine_alpha_next : signed(9 downto 0) := (others => '0');
+   
+   --combine2
+   signal cvgmul2            : unsigned(12 downto 0);
+   signal combiner_result2   : unsigned(8 downto 0) := (others => '0');
+   signal cvgCount2          : unsigned(3 downto 0) := (others => '0');
+   signal ditherAlpha2       : unsigned(2 downto 0) := (others => '0');
 
 begin 
 
@@ -139,9 +145,13 @@ begin
    cvg_overflow <= '1' when (cvgFB + cvgCount_select >= 8) else '0';
 
    combine_alpha_save <= combine_alpha_next;
+   
+   -- combine2
+   cvgmul2 <= (combiner_result2 * cvgCount2) + 4;
 
    process (clk1x)
       variable calc_alpha : unsigned(8 downto 0);
+      variable calc_alpha2 : unsigned(8 downto 0);
    begin
       if rising_edge(clk1x) then
       
@@ -172,16 +182,39 @@ begin
          end if;
             
          if (trigger = '1') then
-            combine_alpha <= calc_alpha(7 downto 0);
+            combine_alpha    <= calc_alpha(7 downto 0);
+            combine_CVGCount <= cvgCount_select;
          end if;
+         
+         -- combine2
          if (step2 = '1') then
-            combine_alpha2 <= calc_alpha(7 downto 0);
+            combiner_result2 <= combiner_result;
+            cvgCount2        <= cvgCount;
+            ditherAlpha2     <= ditherAlpha;
+         end if;
+         
+         calc_alpha2 := combiner_result2;
+            
+         if (settings_otherModes.alphaCvgSelect = '0') then
+            if (settings_otherModes.key = '0') then
+               calc_alpha2 := combiner_result2 + to_integer(ditherAlpha2);
+            else
+               error_combineAlpha <= '1'; -- todo: key alpha mode
+            end if;
+         else
+            if (settings_otherModes.cvgTimesAlpha = '1') then
+               calc_alpha2 := cvgmul2(11 downto 3);
+            else 
+               calc_alpha2 := cvgCount2(3 downto 0) & "00000";
+            end if;
+         end if;
+            
+         if (calc_alpha2(8) = '1') then
+            calc_alpha2 := 9x"0FF";
          end if;
          
          if (trigger = '1') then
-
-            combine_CVGCount <= cvgCount_select;
-            
+            combine_alpha2 <= calc_alpha2(7 downto 0);
          end if;
          
       end if;

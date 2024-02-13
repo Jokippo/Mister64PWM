@@ -223,9 +223,9 @@ architecture arch of RDP_pipeline is
    signal tile0               : unsigned(2 downto 0);
    signal tile1               : unsigned(2 downto 0);
    
-   signal texture_color       : tcolor3_u8;
+   signal texture_color       : tcolor3_u9;
    signal texture_alpha       : unsigned(7 downto 0);   
-   signal texture2_color      : tcolor3_u8;
+   signal texture2_color      : tcolor3_u9;
    signal texture2_alpha      : unsigned(7 downto 0);
    signal texture_copy        : unsigned(63 downto 0);
    
@@ -1406,6 +1406,7 @@ begin
       error_texMode        => error_texMode,
       
       settings_otherModes  => settings_otherModes,
+      settings_Convert     => settings_Convert, 
       settings_tile        => settings_tile_1,
       index_S              => texture_S_index,
       index_S1             => texture_S_index1,

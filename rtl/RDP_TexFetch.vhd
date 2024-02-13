@@ -17,6 +17,7 @@ entity RDP_TexFetch is
       error_texMode        : out std_logic;       
          
       settings_otherModes  : in  tsettings_otherModes;
+      settings_Convert     : in  tsettings_Convert;
       settings_tile        : in  tsettings_tile;
       index_S              : in  unsigned(9 downto 0);
       index_S1             : in  unsigned(9 downto 0);
@@ -46,9 +47,9 @@ entity RDP_TexFetch is
       export2_TexFt_mode   : out unsigned(1 downto 0);
       -- synthesis translate_on
       
-      tex_color_out        : out tcolor3_u8 := (others  => (others => '0'));
+      tex_color_out        : out tcolor3_u9 := (others  => (others => '0'));
       tex_alpha_out        : out unsigned(7 downto 0) := (others => '0');
-      tex2_color_out       : out tcolor3_u8 := (others  => (others => '0'));
+      tex2_color_out       : out tcolor3_u9 := (others  => (others => '0'));
       tex2_alpha_out       : out unsigned(7 downto 0) := (others => '0');
       tex_copy             : out unsigned(63 downto 0) := (others => '0')
    );
@@ -158,6 +159,8 @@ architecture arch of RDP_TexFetch is
    signal tex8_1                 : unsigned(7 downto 0);
    signal tex8_2                 : unsigned(7 downto 0);
    signal tex8_3                 : unsigned(7 downto 0);
+   
+   signal texY                   : unsigned(7 downto 0);
   
    -- synthesis translate_off
    signal addr_base_1            : unsigned(11 downto 0);
@@ -192,12 +195,12 @@ architecture arch of RDP_TexFetch is
    
    signal tex_copy_read          : unsigned(63 downto 0) := (others => '0');
    
-   signal tex_color              : tcolor44_u8;
+   signal tex_color              : tcolor44_u9;
    
-   signal filter_sub1_a          : tcolor4_u8;
-   signal filter_sub1_b          : tcolor4_u8;
-   signal filter_sub2_a          : tcolor4_u8;
-   signal filter_sub2_b          : tcolor4_u8;
+   signal filter_sub1_a          : tcolor4_u9;
+   signal filter_sub1_b          : tcolor4_u9;
+   signal filter_sub2_a          : tcolor4_u9;
+   signal filter_sub2_b          : tcolor4_u9;
    
    type tfilter_sub is array(0 to 3) of signed(9 downto 0);
    signal filter_sub1            : tfilter_sub;
@@ -211,10 +214,10 @@ architecture arch of RDP_TexFetch is
    type tfilter_sum is array(0 to 3) of signed(10 downto 0);
    signal filter_sum2            : tfilter_sum;
    
-   signal tex_color_select       : tcolor3_u8;
+   signal tex_color_select       : tcolor3_u9;
    signal tex_alpha_select       : unsigned(7 downto 0);
       
-   signal tex_color_next2        : tcolor3_u8;
+   signal tex_color_next2        : tcolor3_u9;
    signal tex_alpha_next2        : unsigned(7 downto 0);
    
    -- synthesis translate_off
@@ -257,8 +260,6 @@ begin
          addr_calcT2 <= addr_calcS2 + (addr_base(8 downto 0) & "0000");
          addr_calcT3 <= addr_calcS3 + (addr_base(8 downto 0) & "0000");
          
-         -- todo: special handling for YUV
-      
       else
       
          if (settings_tile.Tile_size = SIZE_8BIT or settings_tile.Tile_format = FORMAT_YUV) then
@@ -386,6 +387,9 @@ begin
          export_TextureAddr(2)(0) <= not addr_calcR2(1); 
          export_TextureAddr(3)(0) <= not addr_calcR3(1); 
       end if;      
+      if (settings_tile.Tile_size = SIZE_16BIT and settings_tile.Tile_format = FORMAT_YUV) then
+         export_TextureAddr(0)(0) <= '0';
+      end if;
       -- synthesis translate_on
       
       pal4Index0Next   <= not addr_calcR0(1 downto 0);
@@ -530,7 +534,9 @@ begin
    tex8_2 <= tex_in2(15 downto 8) when (pal8Index2 = '1') else tex_in2(7 downto 0); 
    tex8_3 <= tex_in3(15 downto 8) when (pal8Index3 = '1') else tex_in3(7 downto 0); 
    
-   iRDP_TexSingle0 : entity work.RDP_TexSingle
+   texY   <= tex_in4(15 downto 8) when (pal8Index0 = '1') else tex_in4(7 downto 0); 
+   
+   iRDP_TexSingle0 : entity work.RDP_TexSingle generic map (hasYUV => '1')
    port map
    (
       clk1x                => clk1x,              
@@ -541,6 +547,7 @@ begin
       error_texMode_out    => error_texMode,      
                                              
       settings_otherModes  => settings_otherModes,
+      settings_Convert     => settings_Convert, 
       settings_tile_1      => settings_tile_1,      
       settings_tile_2      => settings_tile_2,       
                                             
@@ -548,6 +555,7 @@ begin
       data8                => tex8_0,
       data16               => tex_in0,
       data32               => tex_in0 & tex_in4,  
+      dataY                => texY,
       palette16            => unsigned(tex_data(4)),     
       
       -- synthesis translate_off
@@ -563,7 +571,7 @@ begin
       tex_color            => tex_color(0)
    );
    
-   iRDP_TexSingle1 : entity work.RDP_TexSingle
+   iRDP_TexSingle1 : entity work.RDP_TexSingle generic map (hasYUV => '0')
    port map
    (
       clk1x                => clk1x,              
@@ -572,6 +580,7 @@ begin
       mode2                => mode2,
                                              
       settings_otherModes  => settings_otherModes,
+      settings_Convert     => settings_Convert, 
       settings_tile_1      => settings_tile_1,      
       settings_tile_2      => settings_tile_2,       
                                             
@@ -579,6 +588,7 @@ begin
       data8                => tex8_1,
       data16               => tex_in1,
       data32               => tex_in1 & tex_in5,  
+      dataY                => 8x"00",
       palette16            => unsigned(tex_data(5)),     
       
       -- synthesis translate_off
@@ -594,7 +604,7 @@ begin
       tex_color            => tex_color(1)
    );
    
-   iRDP_TexSingle2 : entity work.RDP_TexSingle
+   iRDP_TexSingle2 : entity work.RDP_TexSingle generic map (hasYUV => '0')
    port map
    (
       clk1x                => clk1x,              
@@ -603,6 +613,7 @@ begin
       mode2                => mode2,
                                              
       settings_otherModes  => settings_otherModes,
+      settings_Convert     => settings_Convert, 
       settings_tile_1      => settings_tile_1,      
       settings_tile_2      => settings_tile_2,      
                                             
@@ -610,6 +621,7 @@ begin
       data8                => tex8_2,
       data16               => tex_in2,
       data32               => tex_in2 & tex_in6,  
+      dataY                => 8x"00",
       palette16            => unsigned(tex_data(6)),     
       
       -- synthesis translate_off
@@ -625,7 +637,7 @@ begin
       tex_color            => tex_color(2)
    );
    
-   iRDP_TexSingle3 : entity work.RDP_TexSingle
+   iRDP_TexSingle3 : entity work.RDP_TexSingle generic map (hasYUV => '0')
    port map
    (
       clk1x                => clk1x,              
@@ -634,6 +646,7 @@ begin
       mode2                => mode2,           
                                              
       settings_otherModes  => settings_otherModes,
+      settings_Convert     => settings_Convert, 
       settings_tile_1      => settings_tile_1,      
       settings_tile_2      => settings_tile_2,      
                                             
@@ -641,6 +654,7 @@ begin
       data8                => tex8_3,
       data16               => tex_in3,
       data32               => tex_in3 & tex_in7,  
+      dataY                => 8x"00",
       palette16            => unsigned(tex_data(7)),     
       
       -- synthesis translate_off
@@ -677,6 +691,9 @@ begin
          else
             texmode_calc <= TEXMODE_LOWER;
          end if;
+      end if;
+      if (settings_otherModes.biLerp0 = '0' and settings_otherModes.cycleType(1) = '0') then
+         texmode_calc <= TEXMODE_UNFILTERED;
       end if;
          
    end process;
@@ -720,22 +737,22 @@ begin
    begin
       for i in 0 to 3 loop
       
-         filter_sub1(i) <= ("00" & signed(filter_sub1_a(i))) - ("00" & signed(filter_sub1_b(i)));
-         filter_sub2(i) <= ("00" & signed(filter_sub2_a(i))) - ("00" & signed(filter_sub2_b(i)));
+         filter_sub1(i) <= ("00" & signed(filter_sub1_a(i)(7 downto 0))) - ("00" & signed(filter_sub1_b(i)(7 downto 0)));
+         filter_sub2(i) <= ("00" & signed(filter_sub2_a(i)(7 downto 0))) - ("00" & signed(filter_sub2_b(i)(7 downto 0)));
          
          filter_mul1(i) <= frac_S_2 * filter_sub1(i);
          filter_mul2(i) <= frac_T_2 * filter_sub2(i);
          
          filter_sum1(i)  <= filter_mul1(i) + filter_mul2(i) + to_signed(16#10#, 16);
-         filter_sum2(i)  <= (3x"0" & signed(filter_sub1_b(i))) + filter_sum1(i)(15 downto 5);
+         filter_sum2(i)  <= (3x"0" & signed(filter_sub1_b(i)(7 downto 0))) + filter_sum1(i)(15 downto 5);
          
       end loop;
    end process;
    
-   tex_color_select(0) <= tex_color(0)(0) when (texmode = TEXMODE_UNFILTERED) else unsigned(filter_sum2(0)(7 downto 0));
-   tex_color_select(1) <= tex_color(0)(1) when (texmode = TEXMODE_UNFILTERED) else unsigned(filter_sum2(1)(7 downto 0));
-   tex_color_select(2) <= tex_color(0)(2) when (texmode = TEXMODE_UNFILTERED) else unsigned(filter_sum2(2)(7 downto 0));
-   tex_alpha_select    <= tex_color(0)(3) when (texmode = TEXMODE_UNFILTERED) else unsigned(filter_sum2(3)(7 downto 0));  
+   tex_color_select(0) <= tex_color(0)(0) when (texmode = TEXMODE_UNFILTERED) else '0' & unsigned(filter_sum2(0)(7 downto 0));
+   tex_color_select(1) <= tex_color(0)(1) when (texmode = TEXMODE_UNFILTERED) else '0' & unsigned(filter_sum2(1)(7 downto 0));
+   tex_color_select(2) <= tex_color(0)(2) when (texmode = TEXMODE_UNFILTERED) else '0' & unsigned(filter_sum2(2)(7 downto 0));
+   tex_alpha_select    <= tex_color(0)(3)(7 downto 0) when (texmode = TEXMODE_UNFILTERED) else unsigned(filter_sum2(3)(7 downto 0));  
    
    process (clk1x)
    begin
@@ -772,10 +789,17 @@ begin
          
          if (step2 = '1') then
          
-            tex_color_next2(0) <= tex_color_select(0);
-            tex_color_next2(1) <= tex_color_select(1);
-            tex_color_next2(2) <= tex_color_select(2);
-            tex_alpha_next2    <= tex_alpha_select;
+            if (settings_otherModes.convertOne = '1') then
+               tex_color_next2(0) <= tex_color_out(0);
+               tex_color_next2(1) <= tex_color_out(1);
+               tex_color_next2(2) <= tex_color_out(2);
+               tex_alpha_next2    <= tex_alpha_out;   
+            else
+               tex_color_next2(0) <= tex_color_select(0);
+               tex_color_next2(1) <= tex_color_select(1);
+               tex_color_next2(2) <= tex_color_select(2);
+               tex_alpha_next2    <= tex_alpha_select;
+            end if;
          
             tex_color_out(0) <= tex_color_next2(0);
             tex_color_out(1) <= tex_color_next2(1);

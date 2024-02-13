@@ -181,7 +181,6 @@ begin
    
    process (clk1x)
       variable blender_result : tcolor3_u14;
-      variable alphaIgnoreNew : std_logic;
    begin
       if rising_edge(clk1x) then
          
@@ -209,29 +208,38 @@ begin
          end loop;
             
          -- alpha ignore
-         alphaIgnoreNew := '0';
-         if (settings_otherModes.alphaCompare = '1') then
-            if (settings_otherModes.ditherAlpha = '0') then
-               if (combine_alpha < settings_blendcolor.blend_A) then
-                  alphaIgnoreNew := '1';
-               end if;
-            else
-               if (combine_alpha < random8) then
-                  alphaIgnoreNew := '1';
-               end if;
-            end if;
-         end if;
-         
          if (trigger = '1') then
             if (mode2 = '1') then
                blend_alphaIgnore <= blend_alphaIgnore_next;
             else
-               blend_alphaIgnore <= alphaIgnoreNew;
+               blend_alphaIgnore <= '0';
+               if (settings_otherModes.alphaCompare = '1') then
+                  if (settings_otherModes.ditherAlpha = '0') then
+                     if (combine_alpha < settings_blendcolor.blend_A) then
+                        blend_alphaIgnore <= '1';
+                     end if;
+                  else
+                     if (combine_alpha < random8) then
+                        blend_alphaIgnore <= '1';
+                     end if;
+                  end if;
+               end if;
             end if;
          end if;
          
          if (step2 = '1') then
-            blend_alphaIgnore_next <= alphaIgnoreNew;
+            blend_alphaIgnore_next <= '0';
+            if (settings_otherModes.alphaCompare = '1') then
+               if (settings_otherModes.ditherAlpha = '0') then
+                  if (combine_alpha2 < settings_blendcolor.blend_A) then
+                     blend_alphaIgnore_next <= '1';
+                  end if;
+               else
+                  if (combine_alpha2 < random8) then
+                     blend_alphaIgnore_next <= '1';
+                  end if;
+               end if;
+            end if;
          end if;
           
          -- blend div

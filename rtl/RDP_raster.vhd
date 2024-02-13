@@ -369,6 +369,7 @@ architecture arch of RDP_raster is
    signal TextureReqRAM_index : unsigned(4 downto 0) := (others => '0');
 
    -- comb calculation
+   signal load_length         : unsigned(11 downto 0) := (others => '0');
    signal spanAdvance         : integer range 0 to 8;
    signal memAdvance          : integer range 0 to 8;
    signal load_S_sub          : signed(15 downto 0);
@@ -1175,7 +1176,11 @@ begin
    end process;
    
    -- loading
-   loadLineDone <= '1' when (loadstate = LOADLINE and (to_integer(load_posX) + spanAdvance) > to_integer(load_endX)) else '0';
+   load_length <= load_endX - load_posX + 1;
+   
+   loadLineDone <= '1' when (loadstate = LOADLINE and (to_integer(load_posX) + spanAdvance) > to_integer(load_endX)) else 
+                   '1' when (loadstate = LOADRAM2 and (load_length = 0)) else
+                   '0';
    
    spanAdvance <= 4 when (settings_textureImage.tex_size = SIZE_16BIT and settings_loadtype /= LOADTYPE_TLUT) else
                   1 when (settings_textureImage.tex_size = SIZE_16BIT and settings_loadtype = LOADTYPE_TLUT) else
@@ -1234,10 +1239,21 @@ begin
                           TextureRAMData_1(15 downto  0) & TextureReqRAMData(63 downto 16) when (load_MemAddr(2 downto 0) = "110") else 
                           TextureRAMData_1( 7 downto  0) & TextureReqRAMData(63 downto  8);
    
-   load_Ram0Data <= TextureRAMDataMuxed(63 downto 48) when (load_T_corrected(0) = '0' or settings_textureImage.tex_size = SIZE_32BIT) else TextureRAMDataMuxed(31 downto 16);
-   load_Ram1Data <= TextureRAMDataMuxed(47 downto 32) when (load_T_corrected(0) = '0' or settings_textureImage.tex_size = SIZE_32BIT) else TextureRAMDataMuxed(15 downto  0);
-   load_Ram2Data <= TextureRAMDataMuxed(31 downto 16) when (load_T_corrected(0) = '0' or settings_textureImage.tex_size = SIZE_32BIT) else TextureRAMDataMuxed(63 downto 48);
-   load_Ram3Data <= TextureRAMDataMuxed(15 downto  0) when (load_T_corrected(0) = '0' or settings_textureImage.tex_size = SIZE_32BIT) else TextureRAMDataMuxed(47 downto 32);
+   load_Ram0Data <= TextureRAMDataMuxed(63 downto 56) & TextureRAMDataMuxed(47 downto 40) when (settings_tile.Tile_format = FORMAT_YUV) else 
+                    TextureRAMDataMuxed(63 downto 48) when (load_T_corrected(0) = '0' or settings_textureImage.tex_size = SIZE_32BIT) else 
+                    TextureRAMDataMuxed(31 downto 16);
+   
+   load_Ram1Data <= TextureRAMDataMuxed(55 downto 48) & TextureRAMDataMuxed(39 downto 32) when (settings_tile.Tile_format = FORMAT_YUV) else 
+                    TextureRAMDataMuxed(47 downto 32) when (load_T_corrected(0) = '0' or settings_textureImage.tex_size = SIZE_32BIT) else 
+                    TextureRAMDataMuxed(15 downto  0);
+   
+   load_Ram2Data <= TextureRAMDataMuxed(31 downto 24) & TextureRAMDataMuxed(15 downto 8) when (settings_tile.Tile_format = FORMAT_YUV) else 
+                    TextureRAMDataMuxed(31 downto 16) when (load_T_corrected(0) = '0' or settings_textureImage.tex_size = SIZE_32BIT) else 
+                    TextureRAMDataMuxed(63 downto 48);
+   
+   load_Ram3Data <= TextureRAMDataMuxed(23 downto 16) & TextureRAMDataMuxed(7 downto 0) when (settings_tile.Tile_format = FORMAT_YUV) else 
+                    TextureRAMDataMuxed(15 downto  0) when (load_T_corrected(0) = '0' or settings_textureImage.tex_size = SIZE_32BIT) else 
+                    TextureRAMDataMuxed(47 downto 32);
   
    process (clk1x)
    begin
@@ -1291,6 +1307,9 @@ begin
                   if (memAdvance /= 2 or load_MemAddr(2 downto 1) = 3) then 
                      TextureReqRAM_index <= TextureReqRAM_index + 1;
                   end if;
+                  if (load_length = 0) then
+                     loadstate <= LOADIDLE;
+                  end if;
                
                when LOADLINE =>
                   load_posX    <= load_posX + spanAdvance;
@@ -1317,9 +1336,7 @@ begin
                   
                   TextureRamAddr  <= load_Ram0Addr(9 downto 2);
                   
-                  if (settings_tile.Tile_format = FORMAT_YUV) then
-                     report "texture loading in YUV format" severity failure;  -- todo: implement
-                  elsif (settings_tile.Tile_format = FORMAT_RGBA and settings_textureImage.tex_size = SIZE_32BIT) then
+                  if (settings_tile.Tile_format = FORMAT_YUV or (settings_tile.Tile_format = FORMAT_RGBA and settings_textureImage.tex_size = SIZE_32BIT)) then
                      TextureRam0Data <= load_Ram2Data;
                      TextureRam1Data <= load_Ram0Data;
                      TextureRam2Data <= load_Ram2Data;
@@ -1386,9 +1403,7 @@ begin
                   
                   export_loadValue.x      <= (others => '0');
                   export_loadValue.y      <= (others => '0');
-                  if (settings_tile.Tile_format = FORMAT_YUV) then
-                     -- todo: implement
-                  elsif (settings_tile.Tile_format = FORMAT_RGBA and settings_textureImage.tex_size = SIZE_32BIT) then
+                  if (settings_tile.Tile_format = FORMAT_YUV or (settings_tile.Tile_format = FORMAT_RGBA and settings_textureImage.tex_size = SIZE_32BIT)) then
                      if (load_bit3flipped = '1') then
                         export_loadValue.addr   <= 22x"0" & load_Ram2Addr(9 downto 0);
                      else

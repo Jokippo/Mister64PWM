@@ -15,13 +15,13 @@ module N64_SNAC(
 		input [5:0] sendCnt
 );
 
-localparam SIXTEENuSECONDS = 10'd1000;
+localparam THIRTYTWOuSECONDS = 11'd2000;
 localparam THREEuSECONDS = 8'd191;
 localparam TWOuSECONDS = 8'd126;
 localparam ONEuSECONDS = 8'd64;
 
-reg [9:0]waitTimer = 10'd0;
-reg [7:0]counter = 8'd0;
+reg [10:0]waitTimer = 11'd0;
+reg [8:0]counter = 9'd0;
 reg [2:0]bitCnt = 3'd0;
 reg [5:0]byteCnt = 6'd0;
 reg [2:0]state;
@@ -110,7 +110,7 @@ begin
 			if (counter == 1) begin
 				output1 <= 1'b1;
 				state <= 3'd6;
-				counter <= 8'd20; //short wait to make sure input is high
+				counter <= 9'd20; //short wait to make sure input is high
 			end	
 		end
 
@@ -120,7 +120,7 @@ begin
 				state <= 3'd7;
 				bitCnt <= 3'd7;
 				byteCnt <= 6'd0;
-				waitTimer <= SIXTEENuSECONDS; //set timeout timer, unsure of value
+				waitTimer <= THIRTYTWOuSECONDS; //set timeout timer, unsure of value
 			end
 		end	
 
@@ -132,16 +132,16 @@ begin
 			end
 		
 			if (oldinput && ~input2) begin //falling edge, start timer
-				waitTimer <= SIXTEENuSECONDS; //reset wait timer
+				waitTimer <= THIRTYTWOuSECONDS; //reset wait timer
 				counterEn <= 1'b1;
 			end
 		
 			if(counterEn) counter <= counter + 1'b1;		
 
 			if (~oldinput && input2) begin //rising edge, bit recieved
-				waitTimer <= SIXTEENuSECONDS; 
+				waitTimer <= THIRTYTWOuSECONDS; 
 				counterEn <= 1'b0;
-				counter <= 8'd0;
+				counter <= 9'd0;
 				if (bitCnt > 0) begin
 					bitCnt <= bitCnt - 3'd1; //next bit
 					dataOut[bitCnt] <= (counter < TWOuSECONDS); //bit equals 1 if under 2us
@@ -156,7 +156,7 @@ begin
 					end else begin //received stop bit, transmission done, go to idle
 						state <= 3'd0;
 						byteRec <= 1'b1;
-						waitTimer <= 10'd0;
+						waitTimer <= 11'd0;
 					end
 				end
 			end

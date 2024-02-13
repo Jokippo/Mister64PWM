@@ -147,6 +147,8 @@ entity n64top is
       toPIF_dataSNAC          : in  std_logic_vector(7 downto 0);
      
       -- audio
+      DISABLE_AI              : in  std_logic;
+      DISABLE_AI_IRQ          : in  std_logic;
       sound_out_left          : out std_logic_vector(15 downto 0);
       sound_out_right         : out std_logic_vector(15 downto 0);
       
@@ -857,6 +859,9 @@ begin
       clkvid               => clkvid,        
       ce                   => ce_1x,           
       reset                => reset_intern_1x, 
+      
+      DISABLE_AI           => DISABLE_AI,    
+      DISABLE_AI_IRQ       => DISABLE_AI_IRQ,
 
       irq_out              => irqVector(2),
       

@@ -39,7 +39,7 @@ end entity;
 
 architecture arch of RDP_FBread is
 
-   signal muxselect  : std_logic := '0';
+   signal muxselect  : unsigned(1 downto 0) := (others => '0');
    signal muxselect9 : unsigned(3 downto 0) := (others => '0');
 
    -- 1 cycle delay
@@ -48,9 +48,10 @@ architecture arch of RDP_FBread is
    signal FBData9Z      : unsigned(31 downto 0) := (others => '0');
    signal FBDataZ       : unsigned(15 downto 0) := (others => '0');
    
-   signal muxselect_1   : std_logic := '0';
+   signal muxselect_1   : unsigned(1 downto 0) := (others => '0');
    signal muxselect9_1  : unsigned(3 downto 0) := (others => '0');
    
+   signal Fbdata8       : unsigned(7 downto 0);
    signal Fbdata16      : unsigned(15 downto 0);
    signal Fbdata16_9    : unsigned(1 downto 0);
    
@@ -58,7 +59,8 @@ architecture arch of RDP_FBread is
 begin 
    
    -- todo: must increase line size if games really use more than 2048 pixels in 16bit mode or 1024 pixels in 32 bit mode
-   FBAddr <= yOdd & xIndexPx(10 downto 1) when (settings_colorImage.FB_size = SIZE_16BIT) else
+   FBAddr <= yOdd & xIndexPx(11 downto 2) when (settings_colorImage.FB_size = SIZE_8BIT) else
+             yOdd & xIndexPx(10 downto 1) when (settings_colorImage.FB_size = SIZE_16BIT) else
              yOdd & xIndexPx(9 downto 0);
    
    FBAddr9 <= yOdd & xIndex9(10 downto 4);
@@ -72,7 +74,7 @@ begin
          
          if (trigger = '1') then
          
-            muxselect  <= xIndexPx(0);
+            muxselect  <= xIndexPx(1 downto 0);
             muxselect9 <= xIndex9(3 downto 0);
          
             FBData    <= FBData_in;
@@ -85,7 +87,12 @@ begin
       end if;
    end process;
    
-   Fbdata16   <= byteswap16(FBData(31 downto 16)) when (muxselect_1 = '1') else byteswap16(FBData(15 downto 0));
+   Fbdata8    <= FBData(31 downto 24) when (muxselect_1 = "11") else
+                 FBData(23 downto 16) when (muxselect_1 = "10") else
+                 FBData(15 downto  8) when (muxselect_1 = "01") else
+                 FBData( 7 downto  0);
+   
+   Fbdata16   <= byteswap16(FBData(31 downto 16)) when (muxselect_1(0) = '1') else byteswap16(FBData(15 downto 0));
    
    Fbdata16_9(1) <= FBData9((to_integer(muxselect9_1) * 2) + 1);
    Fbdata16_9(0) <= FBData9((to_integer(muxselect9_1) * 2) + 0);
@@ -109,9 +116,9 @@ begin
          
             case (settings_colorImage.FB_size) is
                when SIZE_8BIT =>
-                  FBcolor(0) <= x"E0"; -- todo: unclear
-                  FBcolor(1) <= x"E0"; -- todo: unclear
-                  FBcolor(2) <= x"E0"; -- todo: unclear
+                  FBcolor(0) <= Fbdata8;
+                  FBcolor(1) <= Fbdata8;
+                  FBcolor(2) <= Fbdata8;
                   FBcolor(3) <= x"E0"; -- todo: unclear
             
                when SIZE_16BIT =>

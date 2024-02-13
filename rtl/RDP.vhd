@@ -1711,16 +1711,16 @@ begin
                
                   useLOD := settings_otherModes.texLod;
                   if (settings_combineMode.combine_mul_R_1 = 13)                                          then useLOD := '1'; end if;
-                  if (settings_combineMode.combine_mul_A_1 = 1)                                           then useLOD := '1'; end if;
+                  if (settings_combineMode.combine_mul_A_1 = 0)                                           then useLOD := '1'; end if;
                   if (settings_otherModes.cycleType = "01" and settings_combineMode.combine_mul_R_0 = 13) then useLOD := '1'; end if;
                   if (settings_otherModes.cycleType = "01" and settings_combineMode.combine_mul_A_0 = 0)  then useLOD := '1'; end if;
                   if (useLOD = '1') then
-                     export_gpu32(19, tracecounts_out(19), export_LOD,      outfile); tracecounts_out(19) <= tracecounts_out(19) + 1;
-                     export_gpu32(26, tracecounts_out(26), export_LODP,     outfile); tracecounts_out(26) <= tracecounts_out(26) + 1;
+                     --export_gpu32(19, tracecounts_out(19), export_LOD,      outfile); tracecounts_out(19) <= tracecounts_out(19) + 1;
+                     --export_gpu32(26, tracecounts_out(26), export_LODP,     outfile); tracecounts_out(26) <= tracecounts_out(26) + 1;
                   end if;
                   
                   export_gpu32(11, tracecounts_out(11), export_TexCoord, outfile); tracecounts_out(11) <= tracecounts_out(11) + 1;
-                  --if (settings_otherModes.sampleType = '1' or settings_otherModes.enTlut = '1') then
+                  --if (settings_otherModes.bilerp0 = '1' and (settings_otherModes.sampleType = '1' or settings_otherModes.enTlut = '1')) then
                   --   export_gpu32(7, texfetch_count + 0, export_TexFetch0, outfile);
                   --   export_gpu32(7, texfetch_count + 1, export_TexFetch1, outfile);
                   --   export_gpu32(7, texfetch_count + 2, export_TexFetch2, outfile);
@@ -1812,7 +1812,9 @@ begin
                write(line_out, string'(" A ")); 
                write(line_out, to_hstring(resize(writePixelAddr, 32)));
                write(line_out, string'(" D ")); 
-               if (settings_colorImage.FB_size = SIZE_16BIT) then
+               if (settings_colorImage.FB_size = SIZE_8BIT) then
+                  write(line_out, to_hstring(x"000000" & writePixelData8));
+               elsif (settings_colorImage.FB_size = SIZE_16BIT) then
                   write(line_out, to_hstring(x"0000" & writePixelData16));
                else
                   write(line_out, to_hstring(writePixelData32));
@@ -1821,16 +1823,20 @@ begin
                write(line_out, to_string_len(to_integer(export_writePixelX), 5));
                write(line_out, string'(" Y ")); 
                write(line_out, to_string_len(to_integer(export_writePixelY), 5));
-               write(line_out, string'(" D1 "));
-               if (settings_colorImage.FB_size = SIZE_16BIT) then
-                  write(line_out, to_hstring(to_unsigned(0, 30) & writePixelCvg(1 downto 0)));
+               if (settings_colorImage.FB_size = SIZE_8BIT) then
+                  write(line_out, string'(" D1 00000000 D2 00000000 D3 00000001"));
                else
+                  write(line_out, string'(" D1 "));
+                  if (settings_colorImage.FB_size = SIZE_16BIT) then
+                     write(line_out, to_hstring(to_unsigned(0, 30) & writePixelCvg(1 downto 0)));
+                  else
+                     write(line_out, to_hstring(to_unsigned(0, 32)));
+                  end if;
+                  write(line_out, string'(" D2 "));
                   write(line_out, to_hstring(to_unsigned(0, 32)));
+                  write(line_out, string'(" D3 "));
+                  write(line_out, to_hstring(resize(writePixelData32(31 downto 8), 32)));
                end if;
-               write(line_out, string'(" D2 "));
-               write(line_out, to_hstring(to_unsigned(0, 32)));
-               write(line_out, string'(" D3 "));
-               write(line_out, to_hstring(resize(writePixelData32(31 downto 8), 32)));
                writeline(outfile, line_out);
                tracecounts_out(1) <= tracecounts_out(1) + 1;
             end if;

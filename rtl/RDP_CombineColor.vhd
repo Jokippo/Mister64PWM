@@ -23,9 +23,9 @@ entity RDP_CombineColor is
       settings_Convert        : in  tsettings_Convert;
      
       pipeInColor             : in  tcolor4_u9;
-      texture_color           : in  tcolor3_u8;
+      texture_color           : in  tcolor3_u9;
       tex_alpha               : in  unsigned(7 downto 0);      
-      texture2_color          : in  tcolor3_u8;
+      texture2_color          : in  tcolor3_u9;
       tex2_alpha              : in  unsigned(7 downto 0);
       lod_frac                : in  unsigned(8 downto 0);
       combine_alpha           : in  signed(9 downto 0);
@@ -98,8 +98,8 @@ begin
          color_sub1(i) <= (others => '0');
          case (to_integer(mode_sub1)) is
             when 0 => color_sub1(i) <= combiner_save(i);
-            when 1 => color_sub1(i) <= x"00" & signed(texture_color(i));
-            when 2 => color_sub1(i) <= x"00" & signed(texture2_color(i));
+            when 1 => if ( texture_color(i)(8 downto 7) = "11") then color_sub1(i) <= 7x"7F" & signed(texture_color(i));  else color_sub1(i) <= 7x"00" & signed(texture_color(i));  end if; 
+            when 2 => if (texture2_color(i)(8 downto 7) = "11") then color_sub1(i) <= 7x"7F" & signed(texture2_color(i)); else color_sub1(i) <= 7x"00" & signed(texture2_color(i)); end if; 
             when 3 => color_sub1(i) <= x"00" & signed(primcolor(i));
             when 4 => color_sub1(i) <= 7x"00" & signed(pipeInColor(i));
             when 5 => color_sub1(i) <= x"00" & signed(envcolor(i));
@@ -108,11 +108,13 @@ begin
             when others => null;
          end case;
          
+         
+         
          color_sub2(i) <= (others => '0');
          case (to_integer(mode_sub2)) is
             when 0 => color_sub2(i) <= combiner_save(i);
-            when 1 => color_sub2(i) <= x"00" & signed(texture_color(i));
-            when 2 => color_sub2(i) <= x"00" & signed(texture2_color(i));
+            when 1 => if ( texture_color(i)(8 downto 7) = "11") then color_sub2(i) <= 7x"7F" & signed(texture_color(i));  else color_sub2(i) <= 7x"00" & signed(texture_color(i));  end if;
+            when 2 => if (texture2_color(i)(8 downto 7) = "11") then color_sub2(i) <= 7x"7F" & signed(texture2_color(i)); else color_sub2(i) <= 7x"00" & signed(texture2_color(i)); end if;
             when 3 => color_sub2(i) <= x"00" & signed(primcolor(i));
             when 4 => color_sub2(i) <= 7x"00" & signed(pipeInColor(i));
             when 5 => color_sub2(i) <= x"00" & signed(envcolor(i));
@@ -123,9 +125,9 @@ begin
          
          color_mul(i) <= (others => '0');
          case (to_integer(mode_mul)) is
-            when  0 => color_mul(i) <= combiner_save(i);
-            when  1 => color_mul(i) <= x"00" & signed(texture_color(i));
-            when  2 => color_mul(i) <= x"00" & signed(texture2_color(i));
+            when  0 => color_mul(i) <= resize(combiner_save(i)(8 downto 0), 16);
+            when  1 => color_mul(i) <= resize(signed(texture_color(i)), 16);
+            when  2 => color_mul(i) <= resize(signed(texture2_color(i)), 16);
             when  3 => color_mul(i) <= x"00" & signed(primcolor(i));
             when  4 => color_mul(i) <= 7x"00" & signed(pipeInColor(i));
             when  5 => color_mul(i) <= x"00" & signed(envcolor(i));
@@ -145,8 +147,8 @@ begin
          color_add(i) <= (others => '0');
          case (to_integer(mode_add)) is
             when 0 => color_add(i) <= combiner_save(i);
-            when 1 => color_add(i) <= x"00" & signed(texture_color(i));
-            when 2 => color_add(i) <= x"00" & signed(texture2_color(i));
+            when 1 => if ( texture_color(i)(8 downto 7) = "11") then color_add(i) <= 7x"7F" & signed(texture_color(i));  else color_add(i) <= 7x"00" & signed(texture_color(i));  end if;
+            when 2 => if (texture2_color(i)(8 downto 7) = "11") then color_add(i) <= 7x"7F" & signed(texture2_color(i)); else color_add(i) <= 7x"00" & signed(texture2_color(i)); end if;
             when 3 => color_add(i) <= x"00" & signed(primcolor(i));
             when 4 => color_add(i) <= 7x"00" & signed(pipeInColor(i));
             when 5 => color_add(i) <= x"00" & signed(envcolor(i));
@@ -172,9 +174,7 @@ begin
    process (clk1x)
    begin
       if rising_edge(clk1x) then
-      
-         --todo: keep unclamped result for cycle 2
-         
+
          if (trigger = '1' or step2 = '1') then
          
             for i in 0 to 2 loop

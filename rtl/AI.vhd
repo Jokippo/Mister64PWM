@@ -13,6 +13,9 @@ entity AI is
       ce               : in  std_logic;
       reset            : in  std_logic;
       
+      DISABLE_AI       : in  std_logic;
+      DISABLE_AI_IRQ   : in  std_logic;
+      
       irq_out          : out std_logic := '0';
       
       sound_out_left   : out std_logic_vector(15 downto 0) := (others => '0');
@@ -182,7 +185,7 @@ begin
                            if (fillcount = 0) then
                               AI_LEN    <= unsigned(bus_dataWrite(17 downto 3)) & "000";
                               fillcount <= 1;
-                              irq_out   <= '1';
+                              irq_out   <= not DISABLE_AI_IRQ;
                            elsif (fillcount = 1) then
                               AI_LEN_next <= unsigned(bus_dataWrite(17 downto 3)) & "000";
                               fillcount   <= 2;
@@ -196,7 +199,7 @@ begin
                         when others   => null;                  
                      end case;
                      
-                  elsif (fifo_nearfull_clk1x(3) = '0' and fillcount > 0) then
+                  elsif (fifo_nearfull_clk1x(3) = '0' and fillcount > 0 and DISABLE_AI = '0') then
                   
                      if (AI_LEN > 0 and AI_CONTROL_DMAON = '1') then
                         state         <= FETCHNEXT;
@@ -216,7 +219,7 @@ begin
                   if (fillcount > 1) then
                      AI_DRAM_ADDR <= AI_DRAM_ADDR_next;
                      AI_LEN       <= AI_LEN_next;
-                     irq_out      <= '1';
+                     irq_out      <= not DISABLE_AI_IRQ;
                   end if;
                   fillcount <= fillcount - 1;
                   

@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.std_logic_1164.all;  
 use IEEE.numeric_std.all; 
+use STD.textio.all;
 
 library mem;
 use work.pFunctions.all;
@@ -607,7 +608,7 @@ begin
                               if (SP_DMA_CURRENT_COUNT > 0) then
                                  SP_DMA_CURRENT_COUNT    <= SP_DMA_CURRENT_COUNT - 1;
                                  SP_DMA_CURRENT_RAMADDR  <= SP_DMA_CURRENT_RAMADDR + SP_DMA_CURRENT_SKIP;
-                                 SP_DMA_CURRENT_WORKLEN  <= ('0' & SP_DMA_LEN) + 1;
+                                 SP_DMA_CURRENT_WORKLEN  <= ('0' & SP_DMA_CURRENT_LEN) + 1;
                               else
                                  SP_DMA_CURRENT_LEN      <= (others => '1');
                                  SP_STATUS_dmabusy       <= '0';
@@ -812,6 +813,62 @@ begin
       
       end if;
    end process;
+   
+   --##############################################################
+--############################### export
+--##############################################################
+   
+   -- synthesis translate_off
+   goutput : if 1 = 1 generate
+      signal out_count        : unsigned(31 downto 0) := (others => '0');
+   begin
+   
+      process
+         file outfile          : text;
+         variable f_status     : FILE_OPEN_STATUS;
+         variable line_out     : line;
+         variable stringbuffer : string(1 to 31);
+      begin
+   
+         file_open(f_status, outfile, "R:\\rsp_DMA2RAM_sim.txt", write_mode);
+         file_close(outfile);
+         file_open(f_status, outfile, "R:\\rsp_DMA2RAM_sim.txt", append_mode);
+         
+         while (true) loop
+            
+            wait until rising_edge(clk1x);
+             
+            if (reset = '1') then
+               file_close(outfile);
+               file_open(f_status, outfile, "R:\\rsp_DMA2RAM_sim.txt", write_mode);
+               file_close(outfile);
+               file_open(f_status, outfile, "R:\\rsp_DMA2RAM_sim.txt", append_mode);
+               out_count <= (others => '0');
+            end if;
+            
+
+            if (fifoout_Wr = '1') then
+               write(line_out, string'(" "));
+               write(line_out, to_hstring(out_count));
+               write(line_out, string'("   ")); 
+               
+               write(line_out, to_hstring(fifoout_Din(84 downto 64) & "000"));
+               write(line_out, string'("   ")); 
+               
+               write(line_out, to_hstring(fifoout_Din(63 downto 0)));
+               write(line_out, string'(" "));
+               
+               writeline(outfile, line_out);
+               out_count <= out_count + 1;
+            end if;
+            
+         end loop;
+         
+      end process;
+   
+   end generate goutput;
+
+   -- synthesis translate_on  
         
 end architecture;
 

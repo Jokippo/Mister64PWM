@@ -236,6 +236,10 @@ begin
       toPIF_enaSNAC         => '0',
       toPIF_dataSNAC        => x"00",
       
+      -- audio
+      DISABLE_AI            => '0',
+      DISABLE_AI_IRQ        => '0',
+      
       -- saves              
       SAVETYPE              => "011",
       CONTROLLERPAK         => '1',

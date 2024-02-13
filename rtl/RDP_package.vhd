@@ -277,6 +277,7 @@ package pRDP is
    ); 
    
    type tcolor3_u8  is array(0 to 2) of unsigned(7 downto 0);
+   type tcolor3_u9  is array(0 to 2) of unsigned(8 downto 0);
    type tcolor3_u13 is array(0 to 2) of unsigned(12 downto 0);
    type tcolor3_u14 is array(0 to 2) of unsigned(13 downto 0);
    type tcolor3_u30 is array(0 to 2) of unsigned(29 downto 0);
@@ -293,7 +294,7 @@ package pRDP is
    type tcolor4_s16 is array(0 to 3) of signed(15 downto 0);
    type tcolor4_s32 is array(0 to 3) of signed(31 downto 0);
    
-   type tcolor44_u8 is array(0 to 3) of tcolor4_u8;
+   type tcolor44_u9 is array(0 to 3) of tcolor4_u9;
    
    type tTextureRamAddr is array(0 to 7) of std_logic_vector(7 downto 0);
    type tTextureRamData is array(0 to 7) of std_logic_vector(15 downto 0);

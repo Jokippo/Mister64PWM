@@ -497,7 +497,7 @@ begin
          
          when CLAMP_SIGNED | CLAMP_UNSIGNED => 
             if    (acc_h < 0  and acc_h /= x"FFFF") then writebackData <= clamp_signbit & 15X"0";
-            elsif (acc_h < 0  and acc_m > 0)        then writebackData <= clamp_signbit & 15X"0";
+            elsif (acc_h < 0  and acc_m >= 0)       then writebackData <= clamp_signbit & 15X"0";
             elsif (acc_h >= 0 and acc_h /= 0)       then writebackData <= (not clamp_signbit) & 15X"7FFF";
             elsif (acc_h >= 0 and acc_m < 0)        then writebackData <= (not clamp_signbit) & 15X"7FFF";
             elsif (outputSelect = CLAMP_SIGNED)     then writebackData <= std_logic_vector(acc_m); 
@@ -511,9 +511,9 @@ begin
             end if;
             
          when CLAMP_MPEG =>
-            if ((acc(47 downto 16) / 2) > 16#7FFF#) then
+            if (acc(47 downto 17) > 32767) then
                writebackData <= x"7FF0";
-            elsif ((acc(47 downto 16) / 2) < -32768) then
+            elsif (acc(47 downto 17) < -32768) then
                writebackData <= x"8000";
             else
                writebackData <= std_logic_vector(acc(32 downto 21)) & x"0";
