@@ -692,7 +692,7 @@ begin
             texmode_calc <= TEXMODE_LOWER;
          end if;
       end if;
-      if (settings_otherModes.biLerp0 = '0' and settings_otherModes.cycleType(1) = '0') then
+      if ((settings_otherModes.biLerp0 = '0' or (settings_otherModes.biLerp1 = '0' and settings_otherModes.convertOne = '1')) and settings_otherModes.cycleType(1) = '0') then
          texmode_calc <= TEXMODE_UNFILTERED;
       end if;
          
@@ -789,17 +789,10 @@ begin
          
          if (step2 = '1') then
          
-            if (settings_otherModes.convertOne = '1') then
-               tex_color_next2(0) <= tex_color_out(0);
-               tex_color_next2(1) <= tex_color_out(1);
-               tex_color_next2(2) <= tex_color_out(2);
-               tex_alpha_next2    <= tex_alpha_out;   
-            else
-               tex_color_next2(0) <= tex_color_select(0);
-               tex_color_next2(1) <= tex_color_select(1);
-               tex_color_next2(2) <= tex_color_select(2);
-               tex_alpha_next2    <= tex_alpha_select;
-            end if;
+            tex_color_next2(0) <= tex_color_select(0);
+            tex_color_next2(1) <= tex_color_select(1);
+            tex_color_next2(2) <= tex_color_select(2);
+            tex_alpha_next2    <= tex_alpha_select;
          
             tex_color_out(0) <= tex_color_next2(0);
             tex_color_out(1) <= tex_color_next2(1);

@@ -33,6 +33,8 @@ entity cpu_cop0 is
                     
       eret                    : in  std_logic;
       exception3              : in  std_logic;
+      exceptionNewPC          : in  std_logic;
+      exceptionPCStore        : in  unsigned(63 downto 0);
       exceptionFPU            : in  std_logic;
       exceptionCode_1         : in  unsigned(3 downto 0);
       exceptionCode_3         : in  unsigned(3 downto 0);
@@ -56,6 +58,10 @@ entity cpu_cop0 is
       regIndex                : in  unsigned(4 downto 0);
       writeValue              : in  unsigned(63 downto 0);
       readValue               : out unsigned(63 downto 0) := (others => '0');
+      
+      executeSetLL            : in  std_logic;
+      executeLLfromTLB        : in  std_logic;
+      executeLLAddr           : in  unsigned(31 downto 0);
       
       TagLo_Valid             : out std_logic;
       TagLo_Dirty             : out std_logic;
@@ -568,7 +574,7 @@ begin
             COP0_13_CAUSE_coprocessorError  <= (others => '0'); 
             COP0_13_CAUSE_branchDelay       <= ss_in(13)(31);          -- '0'
             COP0_14_EPC                     <= 32x"0" & ss_in(14)(31 downto 0); -- (others => '0'); will not work for savestates with TLB
-            COP0_16_CONFIG_cacheAlgoKSEG0   <= (others => '0'); 
+            COP0_16_CONFIG_cacheAlgoKSEG0   <= ss_in(16)(1 downto 0); -- (others => '0'); required for systemtest
             COP0_16_CONFIG_cu               <= (others => '0'); 
             COP0_16_CONFIG_bigEndian        <= '1';
             COP0_16_CONFIG_sysadWBPattern   <= (others => '0'); 
@@ -628,6 +634,15 @@ begin
                cop0Written6 <= cop0Written6 - 1;
                if (cop0Written6 = 1) then
                   COP0_1_RANDOM   <= to_unsigned(31, 6);
+               end if;
+            end if;
+            
+            -- linked address
+            if (stall = 0 and executeSetLL = '1') then 
+               if (executeLLfromTLB = '1') then
+                  COP0_17_LOADLINKEDADDRESS <= 36x"0" & executeLLAddr(31 downto 4);
+               else
+                  COP0_17_LOADLINKEDADDRESS <= 39x"0" & executeLLAddr(28 downto 4);
                end if;
             end if;
             
@@ -788,6 +803,9 @@ begin
             if (isDelaySlot = '1') then
                nextEPC := pcOld1 - 4; -- should this be pcOld2 instead? need to test with exception in branch delay slot after branch in branch delay slot 
             end if;
+            if (exceptionNewPC = '1') then
+               nextEPC := exceptionPCStore;
+            end if;
             if (stall = 0) then
                exception       <= '0';
                exceptionStage1 <= '0';
@@ -850,6 +868,9 @@ begin
             
             if (exception3 = '1' and (exceptionCode_3 = x"4" or exceptionCode_3 = x"5")) then
                excAddrWE := '1';
+               if (exceptionNewPC = '1') then
+                  excAddr := exceptionPCStore;
+               end if;
             end if;
 
             if (TLB_ExcDataRead = '1' or TLB_ExcDataWrite = '1' or TLB_ExcDataDirty = '1') then

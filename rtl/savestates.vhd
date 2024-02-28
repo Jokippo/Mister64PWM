@@ -85,7 +85,7 @@ architecture arch of savestates is
       (  6144,       2),    -- RDP          4 
       (  7168,       8),    -- RDRAMREGS    5 
       (  8192,       8),    -- RI           6 
-      (  9216,       4),    -- RSP          7 
+      (  9216,     512),    -- RSP          7 
       ( 10240,       8),    -- SI           8 
       ( 11264,       8),    -- VI           9 
       ( 16384,    4096),    -- CPU          10

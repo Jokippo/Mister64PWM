@@ -36,7 +36,10 @@ entity cpu_FPU is
       FPUWriteTarget    : out unsigned(4 downto 0) := (others => '0');
       FPUWriteData      : out unsigned(63 downto 0) := (others => '0');
       FPUWriteEnable    : out std_logic := '0';
-      FPUWriteMask      : out std_logic_vector(1 downto 0) := (others => '0')
+      FPUWriteMask      : out std_logic_vector(1 downto 0) := (others => '0');
+      
+      SS_FPU_CF         : in  std_logic;
+      SS_CSR            : in  unsigned(24 downto 0)
    );
 end entity;
 
@@ -614,7 +617,8 @@ begin
       
          if (reset = '1') then
          
-            csr    <= (others => '0');
+            csr         <= SS_CSR; -- (others => '0');
+            csr_compare <= SS_FPU_CF;  -- '0';
            
          else 
          
@@ -784,34 +788,21 @@ begin
                   end case;
                end if;
                
-               if ((checkInputs_dn = '1' and dnA = '1') or (checkInputs2_dn = '1' and dnB = '1')) then
+               if (
+                     (checkInputs_dn   = '1' and dnA = '1') or 
+                     (checkInputs2_dn  = '1' and dnB = '1') or
+                     (checkInputs_nan  = '1' and nanA = '1' and not((bit64 = '1' and command_op1(51) = '1') or (bit64 = '0' and command_op1(22) = '1'))) or
+                     (checkInputs2_nan = '1' and nanB = '1' and not((bit64 = '1' and command_op2(51) = '1') or (bit64 = '0' and command_op2(22) = '1')))
+                  ) then
                   csr_cause_unimplemented <= '1';
                   exception_inputInvalid  <= '1';
                else
-                  if (checkInputs_nan = '1' and nanA = '1') then
-                     if ((bit64 = '1' and command_op1(51) = '1') or (bit64 = '0' and command_op1(22) = '1')) then
-                        csr_cause_invalidOperation <= '1';
-                        if (csr_ena_invalidOperation = '1') then
-                           exception_inputInvalid <= '1';
-                        else
-                           csr_flag_invalidOperation <= '1';
-                        end if;
+                  if ((checkInputs_nan = '1' and nanA = '1') or (checkInputs2_nan = '1' and nanB = '1')) then
+                     csr_cause_invalidOperation <= '1';
+                     if (csr_ena_invalidOperation = '1') then
+                        exception_inputInvalid <= '1';
                      else
-                        exception_inputInvalid  <= '1';
-                        csr_cause_unimplemented <= '1';
-                     end if;
-                  end if;
-                  if (checkInputs2_nan = '1' and nanB = '1' and nanA = '0') then
-                     if ((bit64 = '1' and command_op2(51) = '1') or (bit64 = '0' and command_op2(22) = '1')) then
-                        csr_cause_invalidOperation <= '1';
-                        if (csr_ena_invalidOperation = '1') then
-                           exception_inputInvalid <= '1';
-                        else
-                           csr_flag_invalidOperation <= '1';
-                        end if;
-                     else
-                        exception_inputInvalid  <= '1';
-                        csr_cause_unimplemented <= '1';
+                        csr_flag_invalidOperation <= '1';
                      end if;
                   end if;
                end if;
@@ -1152,6 +1143,9 @@ begin
                ADD_leadingZeros <= 55 - i;
             end if;
          end loop;
+         if (add_result(56) = '1') then
+            ADD_leadingZeros <= 0;
+         end if;
       else
          ADD_leadingZeros <= 27;
          for i in 0 to 26 loop
@@ -1159,6 +1153,9 @@ begin
                ADD_leadingZeros <= 26 - i;
             end if;
          end loop;
+         if (add_result(27) = '1') then
+            ADD_leadingZeros <= 0;
+         end if;
       end if;
       
    end process;

@@ -125,11 +125,46 @@ begin
             case (settings_tile_1.Tile_format) is
                when FORMAT_YUV => error_texMode <= '1'; -- should not be allowed
                
-               when FORMAT_RGBA | FORMAT_CI => -- 4 bit RGBA behaves like CI
+               when FORMAT_RGBA =>
+                  tex_color_read(0) <= data4 & data4;
+                  tex_color_read(1) <= data4 & data4;
+                  tex_color_read(2) <= data4 & data4;
+                  tex_alpha_read    <= data4 & data4;
                   -- synthesis translate_off
-                  exportNext_TexFt_addr <= 20x"0" & '1' & unsigned(tex_palette_addr) & "000";
-                  exportNext_TexFt_db1  <= resize(addr_base_1, 32);
-                  exportNext_TexFt_db3  <= x"0000000" & data4;
+                  if (settings_otherModes.enTlut = '1') then
+                     exportNext_TexFt_addr <= 20x"0" & '1' & unsigned(tex_palette_addr) & "000";
+                     exportNext_TexFt_db1  <= resize(addr_base_1, 32);
+                     exportNext_TexFt_db3  <= x"0000000" & data4;
+                  else
+                     exportNext_TexFt_addr <= 24x"0" & data4 & data4;
+                     exportNext_TexFt_data(23 downto 16) <= data4 & data4;
+                     exportNext_TexFt_data(15 downto  8) <= data4 & data4;
+                     exportNext_TexFt_data( 7 downto  0) <= data4 & data4;
+                     exportNext_TexFt_data(31 downto 24) <= data4 & data4;
+                     exportNext_TexFt_db1  <= resize(addr_base_1, 32);
+                     exportNext_TexFt_db3  <= x"000000" & data8;
+                  end if;
+                  -- synthesis translate_on
+                  
+               when FORMAT_CI =>
+                  tex_color_read(0) <= settings_tile_1.Tile_palette & data4;
+                  tex_color_read(1) <= settings_tile_1.Tile_palette & data4;
+                  tex_color_read(2) <= settings_tile_1.Tile_palette & data4;
+                  tex_alpha_read    <= settings_tile_1.Tile_palette & data4;
+                  -- synthesis translate_off
+                  if (settings_otherModes.enTlut = '1') then
+                     exportNext_TexFt_addr <= 20x"0" & '1' & unsigned(tex_palette_addr) & "000";
+                     exportNext_TexFt_db1  <= resize(addr_base_1, 32);
+                     exportNext_TexFt_db3  <= x"0000000" & data4;
+                  else
+                     exportNext_TexFt_addr <= 24x"0" & data4 & data4;
+                     exportNext_TexFt_data(23 downto 16) <= data4 & data4;
+                     exportNext_TexFt_data(15 downto  8) <= data4 & data4;
+                     exportNext_TexFt_data( 7 downto  0) <= data4 & data4;
+                     exportNext_TexFt_data(31 downto 24) <= data4 & data4;
+                     exportNext_TexFt_db1  <= resize(addr_base_1, 32);
+                     exportNext_TexFt_db3  <= x"000000" & data8;
+                  end if;
                   -- synthesis translate_on
                   
                when FORMAT_IA =>
@@ -303,9 +338,16 @@ begin
             
    end process;
    
-   tex_U <= not tex_color_read(0)(7) & not tex_color_read(0)(7) & signed(tex_color_read(0)(6 downto 0)) when (settings_tile_1.Tile_format = FORMAT_YUV) else '0' & signed(tex_color_read(0));
-   tex_V <= not tex_color_read(1)(7) & not tex_color_read(1)(7) & signed(tex_color_read(1)(6 downto 0)) when (settings_tile_1.Tile_format = FORMAT_YUV) else '0' & signed(tex_color_read(1));
-   tex_Y <= tex_color_read(2);
+   tex_U <= '0' & signed(tex_color_s1(0)) when (settings_otherModes.convertOne = '1' and step2 = '1') else
+            not tex_color_read(0)(7) & not tex_color_read(0)(7) & signed(tex_color_read(0)(6 downto 0)) when (settings_tile_1.Tile_format = FORMAT_YUV) else 
+            '0' & signed(tex_color_read(0));
+   
+   tex_V <= '0' & signed(tex_color_s1(1)) when (settings_otherModes.convertOne = '1' and step2 = '1') else
+            not tex_color_read(1)(7) & not tex_color_read(1)(7) & signed(tex_color_read(1)(6 downto 0)) when (settings_tile_1.Tile_format = FORMAT_YUV) else 
+            '0' & signed(tex_color_read(1));
+   
+   tex_Y <= tex_color_s1(2) when (settings_otherModes.convertOne = '1' and step2 = '1') else
+            tex_color_read(2);
    
    YUV_K0 <= settings_Convert.K0 & '1';
    YUV_K1 <= settings_Convert.K1 & '1';
@@ -403,9 +445,9 @@ begin
          export_TexFt_db3  <= exportNextS1_TexFt_db3; 
       end if;
       -- synthesis translate_on
-      
-      if (hasYUV = '1' and settings_otherModes.biLerp0 = '0' and settings_otherModes.cycleType(1) = '0') then
-         if (settings_otherModes.cycleType(0) = '1') then
+
+      if (hasYUV = '1' and settings_otherModes.cycleType(1) = '0' and (settings_otherModes.biLerp0 = '0' or (settings_otherModes.convertOne = '1' and step2 = '1'))) then
+         if (settings_otherModes.cycleType(0) = '1' and settings_otherModes.convertOne = '0') then
             tex_color(0) <= unsigned(YUV_ADDY_R_next);
             tex_color(1) <= unsigned(YUV_ADDY_G_next);
             tex_color(2) <= unsigned(YUV_ADDY_B_next);

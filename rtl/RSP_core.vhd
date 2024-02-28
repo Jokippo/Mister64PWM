@@ -38,7 +38,13 @@ entity RSP_core is
       reg_RDP_dataRead      : in  unsigned(31 downto 0);
       
       error_instr           : out std_logic := '0';
-      error_stall           : out std_logic := '0'
+      error_stall           : out std_logic := '0';
+      
+      ss_reg_we             : in  std_logic;
+      ss_vreg_we            : in  std_logic;
+      ss_regs_addr          : in  unsigned(4 downto 0);
+      ss_vregs_addr         : in  unsigned(2 downto 0);
+      ss_regs_data          : in  std_logic_vector(31 downto 0)
    );
 end entity;
 
@@ -2196,6 +2202,21 @@ begin
 
          end if; -- ce
          
+         if (ss_reg_we = '1') then
+            writebackWriteEnable <= '1';
+            writebackTarget      <= ss_regs_addr;
+            writebackData        <= unsigned(ss_regs_data);
+         end if;
+         
+         if (ss_vreg_we = '1') then
+            vec_writeEna((to_integer(ss_vregs_addr) * 2) + 0) <= '1';
+            vec_writeEna((to_integer(ss_vregs_addr) * 2) + 1) <= '1';
+            for i in 0 to 7 loop
+               vec_addr_a(i)             <= std_logic_vector(ss_regs_addr);
+               vec_data_a((i * 2) + 0)   <= ss_regs_data( 7 downto 0);
+               vec_data_a((i * 2) + 1)   <= ss_regs_data(15 downto 8);
+            end loop;
+         end if;
 
       end if;
    end process;

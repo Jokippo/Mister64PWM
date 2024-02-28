@@ -26,6 +26,8 @@ entity RDP_Zbuffer is
       
       -- STAGE_COMBINER
       cvg_overflow            : in  std_logic;
+      blend_shift_a           : out unsigned(2 downto 0);
+      blend_shift_b           : out unsigned(2 downto 0);
       
       -- synthesis translate_off
       export_zNewRaw          : out unsigned(31 downto 0);
@@ -96,6 +98,7 @@ architecture arch of RDP_Zbuffer is
    signal new_z_4           : unsigned(17 downto 0)  := (others => '0');
    signal planar_1          : std_logic := '0';
    signal old_z_1           : unsigned(17 downto 0)  := (others => '0');
+   signal old_dz_mem_1      : unsigned(3 downto 0) := (others => '0');
    
     -- synthesis translate_off
    signal old_dz_1          : unsigned(15 downto 0)  := (others => '0');
@@ -117,6 +120,7 @@ architecture arch of RDP_Zbuffer is
    signal is_overflow       : std_logic := '0';
    signal new_z_5           : unsigned(17 downto 0)  := (others => '0');
    signal old_z_2           : unsigned(17 downto 0)  := (others => '0');
+   signal old_dz_mem_2      : unsigned(3 downto 0) := (others => '0');
    
    -- STAGE BLENDER
    signal cvg_dzShift       : unsigned(3 downto 0);
@@ -228,9 +232,9 @@ begin
          
          if (trigger = '1') then
          
-            new_z_3 <= new_z_2;
-            
-            old_z   <= oldZ_mantShifted + oldZ_addValue;
+            new_z_3      <= new_z_2;
+            old_dz_mem_1 <= old_dz_mem;
+            old_z        <= oldZ_mantShifted + oldZ_addValue;
  
             planar <= '0';
             if (old_Z_mem_2(15 downto 13) < 3) then
@@ -262,9 +266,10 @@ begin
          
          if (trigger = '1') then
          
-            new_z_4  <= new_z_3;
-            old_z_1  <= old_z;
-            planar_1 <= planar;
+            new_z_4      <= new_z_3;
+            old_z_1      <= old_z;
+            planar_1     <= planar;
+            old_dz_mem_2 <= old_dz_mem_1;
          
             dzNew <= (others => '0');
             for i in 0 to 15 loop
@@ -318,7 +323,33 @@ begin
                   blend_enable <= '1';
                end if;
             end if;
-
+            
+            if (settings_otherModes.zCompare = '1') then
+               if (old_dz_mem_2 > dzPixEnc) then
+                  blend_shift_a <= "000";
+               elsif ((dzPixEnc - old_dz_mem_2) > 4) then
+                  blend_shift_a <= "100";
+               else
+                  blend_shift_a <= resize(dzPixEnc - old_dz_mem_2, 3);
+               end if;
+               
+               if (dzPixEnc > old_dz_mem_2) then
+                  blend_shift_b <= "000";
+               elsif ((old_dz_mem_2 - dzPixEnc) > 4) then
+                  blend_shift_b <= "100";
+               else
+                  blend_shift_b <= resize(old_dz_mem_2 - dzPixEnc, 3);
+               end if;
+            else
+               blend_shift_a <= "000";
+               blend_shift_b <= "000";
+               if (dzPixEnc >= 12) then -- max 4
+                  blend_shift_b <= to_unsigned(15 - to_integer(dzPixEnc),3);
+               else
+                  blend_shift_b <= "100";
+               end if;
+            end if;
+            
             -- synthesis translate_off
             export_zNewRaw  <= 14x"0" & new_z_4;
             export_zOld     <= 14x"0" & old_z_1;

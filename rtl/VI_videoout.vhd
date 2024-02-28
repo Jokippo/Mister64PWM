@@ -31,6 +31,7 @@ entity VI_videoout is
       VI_DEDITHERFORCE                 : in  std_logic;
       VI_AAOFF                         : in  std_logic;
       VI_DIVOTOFF                      : in  std_logic;
+      VI_7BITPERCOLOR                  : in  std_logic;
                   
       errorEna                         : in  std_logic;
       errorCode                        : in  unsigned(27 downto 0);
@@ -210,9 +211,9 @@ begin
    video_vblank         <= videoout_out.vblank;        
    video_ce             <= videoout_out.ce;             
    video_interlace      <= videoout_out.interlace;             
-   video_r              <= videoout_out.r;             
-   video_g              <= videoout_out.g;             
-   video_b              <= videoout_out.b;  
+   video_r              <= videoout_out.r(7 downto 1) & '0' when (VI_7BITPERCOLOR = '1') else videoout_out.r;             
+   video_g              <= videoout_out.g(7 downto 1) & '0' when (VI_7BITPERCOLOR = '1') else videoout_out.g;             
+   video_b              <= videoout_out.b(7 downto 1) & '0' when (VI_7BITPERCOLOR = '1') else videoout_out.b;  
 
    videoout_settings.CTRL_TYPE         <= VI_CTRL_TYPE;
    videoout_settings.CTRL_SERRATE      <= VI_CTRL_SERRATE;

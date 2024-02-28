@@ -245,6 +245,8 @@ architecture arch of RDP_pipeline is
    signal FBData9_oldZ        : unsigned(31 downto 0);
    signal old_Z_mem           : unsigned(17 downto 0);
       
+   signal blend_shift_a       : unsigned(2 downto 0);
+   signal blend_shift_b       : unsigned(2 downto 0);
    signal blend_alphaIgnore   : std_logic;
    signal blend_divEna        : std_logic;
    signal blend_divVal        : unsigned(3 downto 0);
@@ -1317,6 +1319,8 @@ begin
       
       -- STAGE_COMBINER
       cvg_overflow            => cvg_overflow,
+      blend_shift_a           => blend_shift_a,
+      blend_shift_b           => blend_shift_b,
       
       -- synthesis translate_off
       export_zNewRaw          => export_zNewRaw,
@@ -1546,8 +1550,8 @@ begin
       combine_alpha           => combine_alpha,
       combine_alpha2          => combine_alpha2,
       FB_color                => stage_FBcolor(STAGE_COMBINER),     
-      blend_shift_a           => "000",
-      blend_shift_b           => "000",
+      blend_shift_a           => blend_shift_a,
+      blend_shift_b           => blend_shift_b,
       random8                 => lfsr(7 downto 0),
       ditherAlpha             => stage_ditherA(STAGE_COMBINER),
       
@@ -1561,7 +1565,9 @@ begin
    iRDP_DitherCalc : entity work.RDP_DitherCalc
    port map
    (
+      settings_otherModes  => settings_otherModes,
       ditherColor          => stage_ditherC(STAGE_OUTPUT),
+      random9              => lfsr(8 downto 0),
       color_in             => writePixelColor,
       color_out            => writePixelColorOut
    );

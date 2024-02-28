@@ -11,9 +11,9 @@ package pRDP is
       lft            : std_logic;
       maxLODlevel    : unsigned(2 downto 0);
       tile           : unsigned(2 downto 0);
-      YL             : signed(14 downto 0);
-      YM             : signed(14 downto 0);
-      YH             : signed(14 downto 0);
+      YL             : signed(13 downto 0);
+      YM             : signed(13 downto 0);
+      YH             : signed(13 downto 0);
       XL             : signed(31 downto 0);
       DXLDy          : signed(29 downto 0);
       XH             : signed(31 downto 0);

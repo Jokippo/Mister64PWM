@@ -34,6 +34,7 @@ entity n64top is
       VI_AAOFF                : in  std_logic;
       VI_DIVOTOFF             : in  std_logic;
       VI_NOISEOFF             : in  std_logic;
+      VI_7BITPERCOLOR         : in  std_logic;
       
       CICTYPE                 : in  std_logic_vector(3 downto 0);
       RAMSIZE8                : in  std_logic;
@@ -804,6 +805,7 @@ begin
       VI_DEDITHERFORCE     => VI_DEDITHERFORCE,
       VI_AAOFF             => VI_AAOFF,
       VI_DIVOTOFF          => VI_DIVOTOFF,
+      VI_7BITPERCOLOR      => VI_7BITPERCOLOR,
      
       errorEna             => errorEna, 
       errorCode            => errorCode,

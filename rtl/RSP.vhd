@@ -205,6 +205,12 @@ architecture arch of RSP is
    type t_ssarray is array(0 to 3) of std_logic_vector(63 downto 0);
    signal ss_in  : t_ssarray := (others => (others => '0'));  
    signal ss_out : t_ssarray := (others => (others => '0'));  
+   
+   signal ss_reg_we     : std_logic := '0';
+   signal ss_vreg_we    : std_logic := '0';
+   signal ss_regs_addr  : unsigned(4 downto 0) := (others => '0');
+   signal ss_vregs_addr : unsigned(2 downto 0) := (others => '0');
+   signal ss_regs_data  : std_logic_vector(31 downto 0) := (others => '0');
 
 begin 
 
@@ -789,7 +795,13 @@ begin
       reg_RDP_dataRead      => RSP_RDP_reg_dataIn,
 
       error_instr           => error_instr,
-      error_stall           => error_stall
+      error_stall           => error_stall,
+      
+      ss_reg_we             => ss_reg_we,    
+      ss_vreg_we            => ss_vreg_we,   
+      ss_regs_addr          => ss_regs_addr, 
+      ss_vregs_addr         => ss_vregs_addr,
+      ss_regs_data          => ss_regs_data 
    );
         
 --##############################################################
@@ -803,13 +815,25 @@ begin
    begin
       if (rising_edge(clk1x)) then
       
+         ss_reg_we  <= '0';
+         ss_vreg_we <= '0';
+      
          if (SS_reset = '1') then
             for i in 0 to 3 loop
                ss_in(i) <= (others => '0');
             end loop; 
-         elsif (SS_wren_RSP = '1') then
+         elsif (SS_wren_RSP = '1' and SS_Adr < 4) then
             ss_in(to_integer(SS_Adr)) <= SS_DataWrite;
+         elsif (SS_wren_RSP = '1' and SS_Adr >= 32 and SS_Adr < 64) then
+            ss_reg_we    <= '1';
+            ss_regs_addr <= SS_Adr(4 downto 0);
+         elsif (SS_wren_RSP = '1' and SS_Adr >= 256 and SS_Adr < 512) then
+            ss_vreg_we    <= '1';
+            ss_regs_addr  <= SS_Adr(7 downto 3);
+            ss_vregs_addr <= SS_Adr(2 downto 0);
          end if;
+         
+         ss_regs_data <= SS_DataWrite(31 downto 0);
       
       end if;
    end process;

@@ -34,6 +34,7 @@ entity VI is
       VI_DEDITHERFORCE : in  std_logic;
       VI_AAOFF         : in  std_logic;
       VI_DIVOTOFF      : in  std_logic;
+      VI_7BITPERCOLOR  : in  std_logic;
       
       errorEna         : in  std_logic;
       errorCode        : in  unsigned(27 downto 0);
@@ -318,7 +319,7 @@ begin
             -- fps counter
             if (newFrame = '1') then
                fps_VI_ORIGIN_last <= VI_ORIGIN;
-               if (VI_ORIGIN /= fps_VI_ORIGIN_last) then
+               if (VI_ORIGIN(23 downto 12) /= fps_VI_ORIGIN_last(23 downto 12)) then
                   if (fpscountBCD_next(3 downto 0) = x"9") then
                      fpscountBCD_next(7 downto 4) <= fpscountBCD_next(7 downto 4) + 1;
                      fpscountBCD_next(3 downto 0) <= x"0";
@@ -369,6 +370,7 @@ begin
       VI_DEDITHERFORCE                 => VI_DEDITHERFORCE,
       VI_AAOFF                         => VI_AAOFF,
       VI_DIVOTOFF                      => VI_DIVOTOFF,
+      VI_7BITPERCOLOR                  => VI_7BITPERCOLOR,
             
       errorEna                         => errorEna, 
       errorCode                        => errorCode,

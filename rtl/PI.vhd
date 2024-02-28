@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.std_logic_1164.all;  
 use IEEE.numeric_std.all; 
+use STD.textio.all;
 
 library mem;
 use work.pFunctions.all;
@@ -70,6 +71,7 @@ architecture arch of PI is
    signal PI_DRAM_ADDR           : unsigned(23 downto 0);  -- 0x04600000 PI DRAM address (RW) : [23:0] starting RDRAM address
    signal PI_CART_ADDR           : unsigned(31 downto 0);  -- 0x04600004 PI pbus (cartridge) address (RW) : [31:0] starting AD16 address
    signal PI_LEN                 : unsigned(24 downto 0);  -- 0x04600008/C PI read/write length (RW) : [23:0] read data length
+   signal PI_WR_LEN              : unsigned( 6 downto 0);  -- 0x0460000C PI write length (RW) : [23:0] read data length
    signal PI_STATUS_DMAbusy      : std_logic;              -- 0x04600010 PI status (R) : [0] DMA busy [1] I/O busy [2] DMA error [3] Interrupt (DMA completed) (W) : [0] reset controller [1] clear intr
    signal PI_STATUS_IObusy       : std_logic;  
    signal PI_STATUS_DMAerror     : std_logic;  
@@ -86,8 +88,12 @@ architecture arch of PI is
    signal dmaIsWrite             : std_logic;
    signal first128               : std_logic;
    signal blocklength            : integer range 0 to 128;
-   signal maxram                 : integer range 0 to 128;
+   signal maxram                 : integer range -7 to 128;
    signal copycnt                : integer range 0 to 128;
+   signal MaxBlockSize           : integer range 0 to 128;
+   signal distEndOfRow           : integer range 0 to 2048;
+   signal distEndOfRowSave       : integer range 0 to 2048;
+   signal misAlignSave           : integer range 0 to 7;
       
    -- PI state machine  
    type tState is 
@@ -148,6 +154,8 @@ begin
    
    rdram_burstcount <= 10x"01";
    sdram_burstcount <= x"01";
+   
+   distEndOfRow <= 16#800# - to_integer(PI_DRAM_ADDR(10 downto 0));
 
    process (clk1x)
       variable blocklength_new : integer range 0 to 128;
@@ -176,6 +184,7 @@ begin
             PI_DRAM_ADDR            <= (others => '0');
             PI_CART_ADDR            <= (others => '0');
             PI_LEN                  <= (others => '0');
+            PI_WR_LEN               <= (others => '0');
             PI_STATUS_DMAbusy       <= ss_in(0)(56); -- '0';
             PI_STATUS_IObusy        <= ss_in(0)(57); -- '0';
             PI_STATUS_DMAerror      <= ss_in(0)(58); -- '0';
@@ -212,7 +221,8 @@ begin
                case (bus_reg_addr(19 downto 2) & "00") is
                   when x"00000" => bus_reg_dataRead(23 downto 0) <= std_logic_vector(PI_DRAM_ADDR);    
                   when x"00004" => bus_reg_dataRead(31 downto 0) <= std_logic_vector(PI_CART_ADDR);    
-                  when x"00008" | x"0000C" => bus_reg_dataRead( 6 downto 0) <= (others => '1'); -- maybe different for writes < 8?   
+                  when x"00008" => bus_reg_dataRead( 6 downto 0) <= (others => '1'); -- maybe different for reads < 8?   
+                  when x"0000C" => bus_reg_dataRead( 6 downto 0) <= std_logic_vector(PI_WR_LEN);
                   when x"00010" => 
                      bus_reg_dataRead(0) <= PI_STATUS_DMAbusy;    
                      bus_reg_dataRead(1) <= PI_STATUS_IObusy;    
@@ -233,35 +243,47 @@ begin
             -- bus regs write
             if (bus_reg_write = '1') then
                bus_reg_done <= '1';
-               case (bus_reg_addr(19 downto 2) & "00") is
-                  when x"00000" => PI_DRAM_ADDR <= unsigned(bus_reg_dataWrite(23 downto 1)) & '0';   
-                  when x"00004" => PI_CART_ADDR <= unsigned(bus_reg_dataWrite(31 downto 1)) & '0';
+               
+               if ((bus_reg_addr(19 downto 2) & "00") = x"00010") then
+                  if (bus_reg_dataWrite(1) = '1') then
+                     PI_STATUS_irq <= '0';
+                  end if;
+                  if (bus_reg_dataWrite(0) = '1') then
+                     PI_STATUS_DMAbusy  <= '0';
+                     PI_STATUS_DMAerror <= '0';
+                  end if;
                   
-                  when x"00008" | x"0000C" => 
-                     PI_STATUS_DMAbusy <= '1';
-                     first128          <= '1';
-                     PI_LEN            <= resize(unsigned(bus_reg_dataWrite(23 downto 0)), 25) + to_unsigned(1, 25);         
-                     if (bus_reg_addr(19 downto 2) & "00" = x"00008") then dmaIsWrite <= '0'; else dmaIsWrite <= '1'; end if;
+               --elsif (PI_STATUS_DMAbusy = '1' or PI_STATUS_IObusy = '1') then -- also check IObusy?
+               elsif (PI_STATUS_DMAbusy = '1') then
+                  PI_STATUS_DMAerror <= '1';
+                  error_PI           <= '1';
+               
+               else
+               
+                  case (bus_reg_addr(19 downto 2) & "00") is
+                     when x"00000" => PI_DRAM_ADDR <= unsigned(bus_reg_dataWrite(23 downto 1)) & '0';   
+                     when x"00004" => PI_CART_ADDR <= unsigned(bus_reg_dataWrite(31 downto 1)) & '0';
                      
-                  when x"00010" => 
-                     if (bus_reg_dataWrite(1) = '1') then
-                        PI_STATUS_irq <= '0';
-                     end if;
-                     if (bus_reg_dataWrite(0) = '1') then
-                        PI_STATUS_DMAbusy  <= '0';
-                        PI_STATUS_DMAerror <= '0';
-                     end if;
+                     when x"00008" | x"0000C" => 
+                        PI_STATUS_DMAbusy <= '1';
+                        first128          <= '1';
+                        PI_LEN            <= resize(unsigned(bus_reg_dataWrite(23 downto 0)), 25) + to_unsigned(1, 25);      
+                        MaxBlockSize      <= 128;
+                        if (bus_reg_addr(19 downto 2) & "00" = x"00008") then dmaIsWrite <= '0'; else dmaIsWrite <= '1'; end if;
+                        
+                     when x"00010" => null; --handled above
+                     when x"00014" => PI_BSD_DOM1_LAT <= unsigned(bus_reg_dataWrite(7 downto 0));    
+                     when x"00018" => PI_BSD_DOM1_PWD <= unsigned(bus_reg_dataWrite(7 downto 0));    
+                     when x"0001C" => PI_BSD_DOM1_PGS <= unsigned(bus_reg_dataWrite(3 downto 0));    
+                     when x"00020" => PI_BSD_DOM1_RLS <= unsigned(bus_reg_dataWrite(1 downto 0));    
+                     when x"00024" => PI_BSD_DOM2_LAT <= unsigned(bus_reg_dataWrite(7 downto 0));    
+                     when x"00028" => PI_BSD_DOM2_PWD <= unsigned(bus_reg_dataWrite(7 downto 0));    
+                     when x"0002C" => PI_BSD_DOM2_PGS <= unsigned(bus_reg_dataWrite(3 downto 0));    
+                     when x"00030" => PI_BSD_DOM2_RLS <= unsigned(bus_reg_dataWrite(1 downto 0));
+                     when others   => null;
+                  end case;
                   
-                  when x"00014" => PI_BSD_DOM1_LAT <= unsigned(bus_reg_dataWrite(7 downto 0));    
-                  when x"00018" => PI_BSD_DOM1_PWD <= unsigned(bus_reg_dataWrite(7 downto 0));    
-                  when x"0001C" => PI_BSD_DOM1_PGS <= unsigned(bus_reg_dataWrite(3 downto 0));    
-                  when x"00020" => PI_BSD_DOM1_RLS <= unsigned(bus_reg_dataWrite(1 downto 0));    
-                  when x"00024" => PI_BSD_DOM2_LAT <= unsigned(bus_reg_dataWrite(7 downto 0));    
-                  when x"00028" => PI_BSD_DOM2_PWD <= unsigned(bus_reg_dataWrite(7 downto 0));    
-                  when x"0002C" => PI_BSD_DOM2_PGS <= unsigned(bus_reg_dataWrite(3 downto 0));    
-                  when x"00030" => PI_BSD_DOM2_RLS <= unsigned(bus_reg_dataWrite(1 downto 0));
-                  when others   => null;
-               end case;
+               end if;
             end if;
             
             
@@ -345,7 +367,7 @@ begin
                         if (fastDecay = '1') then
                            writtenTime       <= 1;
                         else
-                           writtenTime       <= 200;
+                           writtenTime       <= 150;
                         end if;
                      end if;
 
@@ -410,34 +432,43 @@ begin
                      if (PI_LEN > 0) then
                      
                         if (dmaIsWrite = '1') then
+                        
                            state <= COPYDMABLOCK;
-                        else 
-                           state <= DMA_READRDRAM;
-                        end if;
                            
-                        blocklength_new := 128;
-                        if (PI_LEN < 128) then
-                           blocklength_new := to_integer(PI_LEN);
-                        end if;
-                        
-                        count_new := PI_LEN - blocklength_new;
-                        if (count_new(0) = '1') then 
-                           count_new := count_new + 1;
-                        end if;
-                           
-                        maxram <= blocklength_new;
-                        if (first128 = '1') then
-                           blocklength_new := blocklength_new - to_integer(PI_DRAM_ADDR(2 downto 0));
-                           if (count_new >= 128) then
-                              maxram <= blocklength_new - to_integer(PI_DRAM_ADDR(2 downto 0));
-                              count_new := count_new + to_integer(PI_DRAM_ADDR(2 downto 0));
+                           blocklength_new := MaxBlockSize - to_integer(PI_DRAM_ADDR(2 downto 0));
+                           if (distEndOfRow < blocklength_new) then
+                              blocklength_new := distEndOfRow;
                            end if;
-                        end if;
+                           if (PI_LEN < blocklength_new) then
+                              blocklength_new := to_integer(PI_LEN);
+                           end if;
+                           
+                           maxram           <= blocklength_new - to_integer(PI_DRAM_ADDR(2 downto 0));
+                           blocklength      <= blocklength_new;
+                           copycnt          <= 0;
+                           distEndOfRowSave <= distEndOfRow;
+                           misAlignSave     <= to_integer(PI_DRAM_ADDR(2 downto 0));
+                           
+                        else 
                         
-                        blocklength <= blocklength_new;
-                        PI_LEN      <= count_new;
-                        copycnt     <= 0;
-                     
+                           state <= DMA_READRDRAM;
+                           
+                           blocklength_new := 128;
+                           if (PI_LEN < 128) then
+                              blocklength_new := to_integer(PI_LEN);
+                           end if;
+                           count_new := PI_LEN - blocklength_new;
+                           if (count_new(0) = '1') then 
+                              count_new := count_new + 1;
+                           end if;
+                              
+                           maxram      <= blocklength_new;
+                           blocklength <= blocklength_new;
+                           PI_LEN      <= count_new;
+                           copycnt     <= 0;
+                           
+                        end if;
+                           
                      else
                         PI_STATUS_irq     <= '1';
                         PI_STATUS_DMAbusy <= '0';
@@ -490,7 +521,6 @@ begin
                   end if;
             
                when COPYDMABLOCK =>
-                  first128 <= '0';
                   if (copycnt < blocklength) then
                      state         <= DMA_READCART;
                      sdram_request <= '1';
@@ -518,76 +548,87 @@ begin
                         error_PI      <= '1';
                      end if;
                   elsif (rdram_done = '1' or rdram_pending = '0') then
-                     state <= IDLE;
+                     state        <= IDLE;
+                     first128     <= '0';
                      PI_DRAM_ADDR <= PI_DRAM_ADDR + 7;
                      PI_DRAM_ADDR(2 downto 0) <= "000";
-                     PI_CART_ADDR <= PI_CART_ADDR + 1;
-                     PI_CART_ADDR(0) <= '0';
+                     if (distEndOfRowSave < 8) then
+                        MaxBlockSize <= 128 - misAlignSave;
+                     else
+                        MaxBlockSize <= 128;
+                     end if;
+                     if (blocklength > 8) then
+                        PI_WR_LEN <= 7x"7F";
+                     else
+                        PI_WR_LEN <= to_unsigned(127 - misAlignSave, 7);
+                     end if;
                   end if;
                   
                when DMA_READCART =>
                   if (sdram_pending = '0' and (rdram_done = '1' or rdram_pending = '0')) then
                   
                      state        <= COPYDMABLOCK;
-                     rdram_request   <= '1';
                      rdram_rnw       <= '0';
                      rdram_dataWrite <= (others => '0');
                      rdram_address   <= "0000" & PI_DRAM_ADDR(23 downto 3) & "000";
-                     rdram_pending   <= '1';
                   
-                     if ((copycnt + 3) < maxram and PI_CART_ADDR(1) = '0' and PI_DRAM_ADDR(1) = '0' and dma_isflashread = '0') then
-                     
-                        copycnt      <= copycnt + 4;
-                        PI_DRAM_ADDR <= PI_DRAM_ADDR + 4;
-                        PI_CART_ADDR <= PI_CART_ADDR + 4;
-                     
-                        if (PI_DRAM_ADDR(2) = '1') then
-                           rdram_dataWrite(63 downto 32) <= sdram_data(31 downto 0); 
-                           rdram_writeMask <= "11110000";
-                        else
-                           rdram_dataWrite(31 downto 0) <= sdram_data(31 downto 0); 
-                           rdram_writeMask <= "00001111";
-                        end if;
-                  
+                     copycnt      <= copycnt + 2;
+                     PI_CART_ADDR <= PI_CART_ADDR + 2;
+                     if (PI_LEN > 2) then
+                        PI_LEN    <= PI_LEN - 2;
                      else
-                     
-                        copycnt      <= copycnt + 2;
-                        PI_DRAM_ADDR <= PI_DRAM_ADDR + 2;
-                        PI_CART_ADDR <= PI_CART_ADDR + 2;
-                     
-                        writemask_new := "00";
-                        if (copycnt < maxram) then
-                           writemask_new(0) := '1';
-                        end if;
-                        if ((copycnt + 1) < maxram) then
-                           writemask_new(1) := '1';
-                        end if;
-                        
-                        dma_readData := sdram_data(15 downto 0);
-                        
-                        if (dma_isflashread = '1') then
-                           if (flashState = FLASHSTATUS) then
-                              case (PI_CART_ADDR(2 downto 1)) is
-                                 when "00" => dma_readData := byteswap16(flash_statusword(63 downto 48));
-                                 when "01" => dma_readData := byteswap16(flash_statusword(47 downto 32));
-                                 when "10" => dma_readData := byteswap16(flash_statusword(31 downto 16));
-                                 when "11" => dma_readData := byteswap16(flash_statusword(15 downto 0));
-                                 when others => null;
-                              end case;
-                           elsif (flashState /= FLASHREAD) then
-                              dma_readData := (others => '0');
-                           end if;
-                        end if;
-                        
-                        case (PI_DRAM_ADDR(2 downto 1)) is
-                           when "00" => rdram_dataWrite(15 downto  0) <= dma_readData; rdram_writeMask <= "000000" & writemask_new;
-                           when "01" => rdram_dataWrite(31 downto 16) <= dma_readData; rdram_writeMask <= "0000" & writemask_new & "00";
-                           when "10" => rdram_dataWrite(47 downto 32) <= dma_readData; rdram_writeMask <= "00" & writemask_new & "0000";
-                           when "11" => rdram_dataWrite(63 downto 48) <= dma_readData; rdram_writeMask <= writemask_new & "000000";
-                           when others => null;
-                        end case;
- 
+                        PI_LEN    <= (others => '0');
                      end if;
+                     
+                     writemask_new := "00";
+                     if (copycnt < maxram) then
+                        writemask_new(0) := '1';
+                        writemask_new(1) := '1';
+                     end if;
+                     if (first128 = '1' and blocklength < 127 - misAlignSave) then
+                        if (copycnt >= maxram - 1) then 
+                           writemask_new(1) := '0';
+                        end if;
+                     end if;
+                     
+                     if (writemask_new(0) = '1') then
+                        rdram_request   <= '1';
+                        rdram_pending   <= '1';
+                     end if;
+                     
+                     if (writemask_new(1) = '1') then
+                        PI_DRAM_ADDR <= PI_DRAM_ADDR + 2;
+                     elsif (writemask_new(0) = '1') then
+                        PI_DRAM_ADDR <= PI_DRAM_ADDR + 1;
+                     end if;
+                     
+                     if (PI_DRAM_ADDR(0) = '1' and writemask_new /= "00") then
+                        report "Unaligned PI DMA write" severity failure;  
+                     end if;
+                     
+                     dma_readData := sdram_data(15 downto 0);
+                     
+                     if (dma_isflashread = '1') then
+                        if (flashState = FLASHSTATUS) then
+                           case (PI_CART_ADDR(2 downto 1)) is
+                              when "00" => dma_readData := byteswap16(flash_statusword(63 downto 48));
+                              when "01" => dma_readData := byteswap16(flash_statusword(47 downto 32));
+                              when "10" => dma_readData := byteswap16(flash_statusword(31 downto 16));
+                              when "11" => dma_readData := byteswap16(flash_statusword(15 downto 0));
+                              when others => null;
+                           end case;
+                        elsif (flashState /= FLASHREAD) then
+                           dma_readData := (others => '0');
+                        end if;
+                     end if;
+                     
+                     case (PI_DRAM_ADDR(2 downto 1)) is
+                        when "00" => rdram_dataWrite(15 downto  0) <= dma_readData; rdram_writeMask <= "000000" & writemask_new;
+                        when "01" => rdram_dataWrite(31 downto 16) <= dma_readData; rdram_writeMask <= "0000" & writemask_new & "00";
+                        when "10" => rdram_dataWrite(47 downto 32) <= dma_readData; rdram_writeMask <= "00" & writemask_new & "0000";
+                        when "11" => rdram_dataWrite(63 downto 48) <= dma_readData; rdram_writeMask <= writemask_new & "000000";
+                        when others => null;
+                     end case;
                      
                   end if;
                   
@@ -720,6 +761,83 @@ begin
       
       end if;
    end process;
+   
+      
+--##############################################################
+--############################### export
+--##############################################################
+   
+   -- synthesis translate_off
+   goutput : if 1 = 1 generate
+      signal out_count        : unsigned(31 downto 0) := (others => '0');
+      signal exportindex      : unsigned(15 downto 0);
+   begin
+   
+      process
+         file outfile           : text;
+         variable f_status      : FILE_OPEN_STATUS;
+         variable line_out      : line;
+         variable stringbuffer  : string(1 to 31);
+         
+         variable exportaddress : unsigned(31 downto 0);
+         variable exportdata    : unsigned(63 downto 0);
+         variable out_count_new : unsigned(31 downto 0);
+      begin
+   
+         file_open(f_status, outfile, "R:\\PI_n64_sim.txt", write_mode);
+         file_close(outfile);
+         file_open(f_status, outfile, "R:\\PI_n64_sim.txt", append_mode);
+         
+         while (true) loop
+         
+            if (reset = '1') then
+               file_close(outfile);
+               file_open(f_status, outfile, "R:\\PI_n64_sim.txt", write_mode);
+               file_close(outfile);
+               file_open(f_status, outfile, "R:\\PI_n64_sim.txt", append_mode);
+               out_count <= (others => '0');
+               exportindex <= (others => '0');
+            end if;
+            
+            wait until rising_edge(clk1x);
+
+            if (rdram_request = '1' and rdram_rnw = '0') then
+               
+               exportaddress := x"0" & rdram_address;
+               exportdata    := unsigned(rdram_dataWrite);
+               
+               out_count_new := out_count;
+               for i in 0 to 7 loop
+                  if (rdram_writeMask(i) = '1') then
+                     write(line_out, to_hstring(exportindex));
+                     write(line_out, string'(" "));                    
+                     write(line_out, to_hstring(exportaddress));
+                     write(line_out, string'(" "));
+                     write(line_out, to_hstring(exportdata(7 downto 0)));
+                     writeline(outfile, line_out);
+                     out_count_new := out_count_new + 1;
+                  end if;
+                  
+                  exportdata := x"00" & exportdata(63 downto 8);
+                  exportaddress := exportaddress + 1;
+               end loop;
+               out_count <= out_count_new;
+               
+            end if;
+            
+            if (state = IDLE and dmaIsWrite = '1' and PI_STATUS_DMAbusy = '1' and PI_LEN = 0) then
+               file_close(outfile);
+               file_open(f_status, outfile, "R:\\PI_n64_sim.txt", append_mode);
+               exportindex <= exportindex + 1;
+            end if;
+            
+         end loop;
+         
+      end process;
+   
+   end generate goutput;
+
+   -- synthesis translate_on  
 
 end architecture;
 

@@ -132,6 +132,7 @@ begin
       VI_DEDITHERFORCE      => '0',
       VI_AAOFF              => '0',
       VI_DIVOTOFF           => '0',
+      VI_7BITPERCOLOR       => '0',
       
       CICTYPE               => "0000",
       RAMSIZE8              => '1',

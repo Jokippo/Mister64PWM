@@ -128,14 +128,14 @@ architecture arch of RDP_raster is
    signal xright        : signed(31 downto 0) := (others => '0');
    signal xleft         : signed(31 downto 0) := (others => '0');
    signal do_offset     : std_logic;
-   signal ycur          : signed(14 downto 0) := (others => '0');
+   signal ycur          : signed(13 downto 0) := (others => '0');
    signal ldflag        : unsigned(1 downto 0) := (others => '0');
-   signal yLLimitMux    : signed(14 downto 0);
-   signal yHLimitMux    : signed(14 downto 0);
-   signal ylfar         : signed(14 downto 0) := (others => '0');
-   signal yllimit       : signed(14 downto 0) := (others => '0');
-   signal yhlimit       : signed(14 downto 0) := (others => '0');
-   signal yhclose       : signed(14 downto 0);
+   signal yLLimitMux    : signed(13 downto 0);
+   signal yHLimitMux    : signed(13 downto 0);
+   signal ylfar         : signed(13 downto 0) := (others => '0');
+   signal yllimit       : signed(13 downto 0) := (others => '0');
+   signal yhlimit       : signed(13 downto 0) := (others => '0');
+   signal yhclose       : signed(13 downto 0);
    signal clipxlshift   : unsigned(12 downto 0);
    signal clipxhshift   : unsigned(12 downto 0);
       
@@ -146,6 +146,7 @@ architecture arch of RDP_raster is
    signal unscrx        : signed(12 downto 0) := (others => '0');
    signal maxxmx        : unsigned(11 downto 0) := (others => '0');
    signal minxmx        : unsigned(11 downto 0) := (others => '0');
+   signal scissorNow    : std_logic;
       
    type t_majorminor is array(0 to 3) of unsigned(12 downto 0);
    signal majorx        : t_majorminor := (others => (others => '0'));
@@ -449,18 +450,18 @@ begin
       
    do_offset      <= not (settings_poly.DXHDy(29) xor settings_poly.lft);
    
-   yLLimitMux     <= settings_poly.YL(14 downto 0)              when (loading_mode = '1' or settings_poly.YL(13) = '1') else
-                     "000" & signed(settings_scissor.ScissorYL) when (settings_poly.YL(12) = '1') else
-                     settings_poly.YL(14 downto 0)              when (unsigned(settings_poly.YL(11 downto 0)) < settings_scissor.ScissorYL) else
-                     "000" & signed(settings_scissor.ScissorYL);   
+   yLLimitMux     <= settings_poly.YL                          when (loading_mode = '1' or settings_poly.YL(13) = '1') else
+                     "00" & signed(settings_scissor.ScissorYL) when (settings_poly.YL(12) = '1') else
+                     settings_poly.YL                          when (unsigned(settings_poly.YL(11 downto 0)) < settings_scissor.ScissorYL) else
+                     "00" & signed(settings_scissor.ScissorYL);   
                   
-   yHLimitMux     <= settings_poly.YH(14 downto 0)              when (loading_mode = '1') else
-                     "000" & signed(settings_scissor.ScissorYH) when (settings_poly.YH(13) = '1') else
-                     settings_poly.YH(14 downto 0)              when (settings_poly.YH(12) = '1') else
-                     settings_poly.YH(14 downto 0)              when (settings_poly.YH >= to_integer(settings_scissor.ScissorYH)) else
-                     "000" & signed(settings_scissor.ScissorYH);
+   yHLimitMux     <= settings_poly.YH                          when (loading_mode = '1') else
+                     "00" & signed(settings_scissor.ScissorYH) when (settings_poly.YH(13) = '1') else
+                     settings_poly.YH                          when (settings_poly.YH(12) = '1') else
+                     settings_poly.YH                          when (settings_poly.YH >= to_integer(settings_scissor.ScissorYH)) else
+                     "00" & signed(settings_scissor.ScissorYH);
    
-   yhclose        <= yHLimitMux(14 downto 2) & "00";
+   yhclose        <= yHLimitMux(13 downto 2) & "00";
    
    clipxlshift    <= settings_scissor.ScissorXL & '0';
    clipxhshift    <= settings_scissor.ScissorXH & '0';
@@ -499,6 +500,10 @@ begin
                      '1' when (ycur >= yllimit) else
                      '1' when (loading_mode = '0' and curcross = '1') else
                      '0';
+                     
+   scissorNow     <= '0' when (settings_scissor.ScissorField = '0') else
+                     '0' when (settings_scissor.ScissorOdd /= ycur(2)) else
+                     '1';
                    
    calcFBAddr     <= resize(((lineInfo.y * (settings_colorImage.FB_width_m1 + 1)) + lineInfo.xStart) * 1, 26) when (settings_colorImage.FB_size = SIZE_8BIT) else
                      resize(((lineInfo.y * (settings_colorImage.FB_width_m1 + 1)) + lineInfo.xStart) * 2, 26) when (settings_colorImage.FB_size = SIZE_16BIT) else
@@ -563,20 +568,20 @@ begin
                      polystate <= EVALLINE;
                      
                      xright         <= settings_poly.XH(31 downto 1) & '0';
-                     if (settings_poly.YH(14 downto 2) & "00" = settings_poly.YM) then
+                     if (settings_poly.YH(13 downto 2) & "00" = settings_poly.YM) then
                         secondHalf <= '1';
                         xleft      <= settings_poly.XL(31 downto 1) & '0';
                      else
                         secondHalf  <= '0';
                         xleft       <= settings_poly.XM(31 downto 1) & '0';
                      end if;
-                     ycur           <= settings_poly.YH(14 downto 2) & "00";
+                     ycur           <= settings_poly.YH(13 downto 2) & "00";
                      ldflag         <= (others => do_offset);
                      yllimit        <= yLLimitMux;
-                     if (settings_poly.YL(14 downto 2) > yLLimitMux(14 downto 2)) then
-                        ylfar       <= (yLLimitMux(14 downto 2) + 1) & "11";
+                     if (settings_poly.YL(13 downto 2) > yLLimitMux(13 downto 2)) then
+                        ylfar       <= (yLLimitMux(13 downto 2) + 1) & "11";
                      else
-                        ylfar       <= yLLimitMux(14 downto 2) & "11";
+                        ylfar       <= yLLimitMux(13 downto 2) & "11";
                      end if;
                      yhlimit        <= yHLimitMux;
                      allover        <= '1';
@@ -621,7 +626,7 @@ begin
                      polystate <= POLYFINISH;
                   end if;
                   
-                  if ((loading_mode = '1' and ycur(14 downto 12) = "000") or (loading_mode = '0' and ycur >= yhclose)) then
+                  if ((loading_mode = '1' and ycur(13 downto 12) = "00") or (loading_mode = '0' and ycur >= yhclose)) then
 
                      if (ycur(1 downto 0) = 0) then
                         maxxmx_new     := (others => '0');
@@ -714,7 +719,7 @@ begin
                   end if;
                   
                when REQUESTFB =>
-                  if (allinval = '0' and allover = '0' and allunder = '0') then
+                  if (allinval = '0' and allover = '0' and allunder = '0' and scissorNow = '0') then
                      polystate <= WAITREADRAM;
                      FBreq     <= '1';
                      FBaddr    <= calcFBAddr;
@@ -755,7 +760,7 @@ begin
                startLine <= '0';
             end if;
             
-            if (startLine = '1' and linestate = LINEIDLE and (allinval = '1' or allover = '1' or allunder = '1')) then
+            if (startLine = '1' and linestate = LINEIDLE and (allinval = '1' or allover = '1' or allunder = '1' or scissorNow = '1')) then
                startLine <= '0';
             end if;
             
@@ -894,7 +899,7 @@ begin
                      end if;
                   end if;
                
-                  if (startLine = '1' and allinval = '0' and allover = '0' and allunder = '0') then
+                  if (startLine = '1' and allinval = '0' and allover = '0' and allunder = '0' and scissorNow = '0') then
                      if (loading_mode = '0') then
                         if (settings_otherModes.cycleType = "11") then
                            linestate <= FILLLINE;

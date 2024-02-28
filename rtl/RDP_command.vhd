@@ -190,9 +190,9 @@ begin
                         settings_poly.lft         <= CommandData(55);
                         settings_poly.maxLODlevel <= CommandData(53 downto 51);
                         settings_poly.tile        <= CommandData(50 downto 48);
-                        settings_poly.YL          <= signed(CommandData(46 downto 32));
-                        settings_poly.YM          <= signed(CommandData(30 downto 16));
-                        settings_poly.YH          <= signed(CommandData(14 downto  0));
+                        settings_poly.YL          <= signed(CommandData(45 downto 32));
+                        settings_poly.YM          <= signed(CommandData(29 downto 16));
+                        settings_poly.YH          <= signed(CommandData(13 downto  0));
                         
                      when 6x"24" | 6x"25" => -- texture rectangle
                         state           <= EVALTEXRECTANGLE;  
@@ -204,9 +204,9 @@ begin
                         tile_usePipe           <= '1';
                         settings_poly.tile     <= CommandData(26 downto 24);
                         settings_poly.lft      <= '1';
-                        settings_poly.YL       <= "000" & signed(CommandData(43 downto 32));
-                        settings_poly.YM       <= "000" & signed(CommandData(43 downto 32));
-                        settings_poly.YH       <= "000" & signed(CommandData(11 downto  0));     
+                        settings_poly.YL       <= "00"  & signed(CommandData(43 downto 32));
+                        settings_poly.YM       <= "00"  & signed(CommandData(43 downto 32));
+                        settings_poly.YH       <= "00"  & signed(CommandData(11 downto  0));     
                         settings_poly.XL       <= 6x"0" & signed(CommandData(23 downto 12)) & 14x"0";
                         settings_poly.XH       <= 6x"0" & signed(CommandData(23 downto 12)) & 14x"0";
                         settings_poly.XM       <= 6x"0" & signed(CommandData(55 downto 44)) & 14x"0";
@@ -317,9 +317,9 @@ begin
                            settings_loadtype   <= LOADTYPE_TILE;
                         end if;
                         settings_poly.lft             <= '1';
-                        settings_poly.YL              <= "000" & signed(CommandData(11 downto 2)) & "11";
-                        settings_poly.YM              <= "000" & signed(CommandData(11 downto 2)) & "11";
-                        settings_poly.YH              <= "000" & signed(CommandData(43 downto 32));
+                        settings_poly.YL              <= "00"  & signed(CommandData(11 downto 2)) & "11";
+                        settings_poly.YM              <= "00"  & signed(CommandData(11 downto 2)) & "11";
+                        settings_poly.YH              <= "00"  & signed(CommandData(43 downto 32));
                         settings_poly.XL              <= 6x"0" & signed(CommandData(23 downto 14)) & 16x"0";
                         settings_poly.XH              <= 6x"0" & signed(CommandData(55 downto 46)) & 16x"0";
                         settings_poly.XM              <= 6x"0" & signed(CommandData(23 downto 14)) & 16x"0";
@@ -357,9 +357,9 @@ begin
                         tileSize_we            <= '1'; 
                         settings_loadtype      <= LOADTYPE_BLOCK;
                         settings_poly.lft             <= '1';
-                        settings_poly.YL              <= "000" & signed(CommandData(41 downto 32)) & "11";
-                        settings_poly.YM              <= "000" & signed(CommandData(41 downto 32)) & "11";
-                        settings_poly.YH              <= "000" & signed(CommandData(41 downto 32)) & "00";
+                        settings_poly.YL              <= "00"  & signed(CommandData(41 downto 32)) & "11";
+                        settings_poly.YM              <= "00"  & signed(CommandData(41 downto 32)) & "11";
+                        settings_poly.YH              <= "00"  & signed(CommandData(41 downto 32)) & "00";
                         settings_poly.XL              <= 4x"0" & signed(CommandData(23 downto 12)) & 16x"0";
                         settings_poly.XH              <= 4x"0" & signed(CommandData(55 downto 44)) & 16x"0";
                         settings_poly.XM              <= 4x"0" & signed(CommandData(23 downto 12)) & 16x"0";
@@ -393,9 +393,9 @@ begin
                         tile_usePipe               <= '0';
                         settings_poly.lft          <= '1';
                         settings_poly.maxLODlevel  <= (others => '0');
-                        settings_poly.YL           <= "000" & signed(CommandData(43 downto 32));
-                        settings_poly.YM           <= "000" & signed(CommandData(43 downto 32));
-                        settings_poly.YH           <= "000" & signed(CommandData(11 downto  0));     
+                        settings_poly.YL           <= "00"  & signed(CommandData(43 downto 32));
+                        settings_poly.YM           <= "00"  & signed(CommandData(43 downto 32));
+                        settings_poly.YH           <= "00"  & signed(CommandData(11 downto  0));     
                         settings_poly.XL           <= 6x"0" & signed(CommandData(23 downto 12)) & 14x"0";
                         settings_poly.XH           <= 6x"0" & signed(CommandData(23 downto 12)) & 14x"0";
                         settings_poly.XM           <= 6x"0" & signed(CommandData(55 downto 44)) & 14x"0";
