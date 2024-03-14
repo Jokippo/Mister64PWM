@@ -14,6 +14,8 @@ entity VI_linefetch is
       
       error_linefetch    : out std_logic := '0';
       
+      VI_DIRECTFBMODE    : in  std_logic;
+      
       VI_CTRL_TYPE       : in unsigned(1 downto 0);
       VI_CTRL_SERRATE    : in std_logic;
       VI_ORIGIN          : in unsigned(23 downto 0);
@@ -24,6 +26,8 @@ entity VI_linefetch is
       
       newFrame           : in  std_logic;
       fetch              : in  std_logic;
+      interlacedField    : in  std_logic;
+      video_blockVIFB    : in  std_logic;
       
       addr9_offset       : out taddr9offset := (others => 0);
       startProc          : out std_logic := '0';
@@ -33,6 +37,7 @@ entity VI_linefetch is
       outprocIdle        : in  std_logic := '0';
       startOut           : out std_logic := '0';
       fracYout           : out unsigned(4 downto 0);
+      FetchLineCount     : out unsigned(9 downto 0) := (others => '0');
       
       rdram_request      : out std_logic := '0';
       rdram_rnw          : out std_logic := '0'; 
@@ -75,6 +80,7 @@ architecture arch of VI_linefetch is
    signal lineInPtr        : std_logic_vector(2 downto 0) := (others => '0');
    signal lineInFetched    : unsigned(2 downto 0) := (others => '0');   
    signal lineProcCnt      : std_logic := '0';
+   signal lineCount        : unsigned(9 downto 0) := (others => '0');
    
    signal line_prefetch    : integer range 0 to 8;   
    signal lineWidth        : unsigned(13 downto 0);
@@ -144,18 +150,29 @@ begin
             
                when IDLE =>
                   if (newFrame = '1') then
-                     ram_offset    <= to_signed(0, ram_offset'length) - to_integer(lineWidth) - line_prefetch;
-                     y_accu        <= 8x"0" & VI_Y_SCALE_OFFSET;
-                     lineInFetched <= "000";
+                     FetchLineCount <= lineCount;
+                     lineCount      <= (others => '0');
+                     if (VI_DIRECTFBMODE = '1') then
+                        ram_offset    <= (others => '0');
+                        lineInFetched <= "011";
+                        lineProcCnt   <= '0';
+                        if (VI_CTRL_SERRATE = '1' and interlacedField = '1' and video_blockVIFB = '0') then
+                           ram_offset <= to_signed(0, ram_offset'length) - to_integer(lineWidth);
+                        end if;
+                     else
+                        ram_offset    <= to_signed(0, ram_offset'length) - to_integer(lineWidth) - line_prefetch;
+                        lineInFetched <= "000";
+                        lineProcCnt   <= '1';
+                        state         <= REQUESTLINE;
+                     end if;
                      lineInPtr     <= "001";
-                     lineProcCnt   <= '1';
-                     state         <= REQUESTLINE;
+                     y_accu        <= 8x"0" & VI_Y_SCALE_OFFSET;
                   end if;
                   if (fetch = '1') then
                      y_accu <= y_accu_new; 
                      if (y_diff > 0) then
                         state <= REQUESTLINE;
-                        if (y_diff > 1) then
+                        if (y_diff > 1 or (VI_DIRECTFBMODE = '1' and video_blockVIFB = '0' and VI_CTRL_SERRATE = '1' and VI_Y_SCALE_FACTOR <= 16#400#)) then
                            lineProcCnt <= '1';
                         end if;
                      else
@@ -195,6 +212,7 @@ begin
                   
                   if ((rdram_done = '1' or rdram_finished = '1') and (sdram_done = '1' or rdram9_finished = '1')) then
                      state          <= IDLE;
+                     lineCount      <= lineCount + 1;
                      lineInPtr      <= lineInPtr(1 downto 0) & lineInPtr(2);   
                      lineInFetched  <= lineInFetched(1 downto 0) & '1';    
                      if (lineInFetched(1 downto 0) = "11") then

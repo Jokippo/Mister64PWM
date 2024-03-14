@@ -13,7 +13,8 @@ entity ddrram_model is
    (
       LOADRDRAM     : std_logic := '0';
       SLOWTIMING    : integer := 0;
-      RANDOMTIMING  : std_logic := '0'
+      RANDOMTIMING  : std_logic := '0';
+      OUTPUT_VIFB   : std_logic := '0'
    );
    port 
    (
@@ -71,6 +72,13 @@ begin
       
       file ssfile             : t_ssfile;
       
+      file outfile            : text;
+      variable line_out       : line;
+      variable stringbuffer   : string(1 to 31);
+      variable pixel_posx     : integer;
+      variable pixel_posy     : integer;
+      variable pixelcolor     : unsigned(31 downto 0);
+      
       -- copy from std_logic_arith, not used here because numeric std is also included
       function CONV_STD_LOGIC_VECTOR(ARG: INTEGER; SIZE: INTEGER) return STD_LOGIC_VECTOR is
         variable result: STD_LOGIC_VECTOR (SIZE-1 downto 0);
@@ -123,6 +131,14 @@ begin
             
             report "RDRAM loaded";
          
+      end if;
+      
+      if (OUTPUT_VIFB = '1') then
+         file_open(f_status, outfile, "gra_VIFB.gra", write_mode);
+         file_close(outfile);
+         file_open(f_status, outfile, "gra_VIFB.gra", append_mode);
+         write(line_out, string'("640#480#2")); 
+         writeline(outfile, line_out);
       end if;
       
       seed1 := 1;
@@ -242,6 +258,36 @@ begin
          
             COMMAND_FILE_ACK_2 <= '1';
          
+         end if;
+         
+         if (OUTPUT_VIFB = '1') then
+            if (DDRAM_WE = '1' and DDRAM_ADDR(24 downto 21) = "0001") then
+               
+               if (pixel_posy /= to_integer(unsigned(DDRAM_ADDR(17 downto 9)))) then
+                  file_close(outfile);
+                  file_open(f_status, outfile, "gra_VIFB.gra", append_mode);
+               end if;
+               
+               pixel_posx := to_integer(unsigned(DDRAM_ADDR(8 downto 0))) * 2;
+               pixel_posy := to_integer(unsigned(DDRAM_ADDR(17 downto 9)));
+               
+               pixelcolor := x"00" & unsigned(DDRAM_DIN(7 downto 0)) & unsigned(DDRAM_DIN(15 downto 8)) & unsigned(DDRAM_DIN(23 downto 16));
+               write(line_out, to_integer(pixelcolor));
+               write(line_out, string'("#"));
+               write(line_out, pixel_posx);
+               write(line_out, string'("#")); 
+               write(line_out, pixel_posy);
+               writeline(outfile, line_out);
+               
+               pixelcolor := x"00" & unsigned(DDRAM_DIN(39 downto 32)) & unsigned(DDRAM_DIN(47 downto 40)) & unsigned(DDRAM_DIN(55 downto 48));
+               write(line_out, to_integer(pixelcolor));
+               write(line_out, string'("#"));
+               write(line_out, pixel_posx + 1);
+               write(line_out, string'("#")); 
+               write(line_out, pixel_posy);
+               writeline(outfile, line_out);
+               
+            end if;
          end if;
       
       end loop;

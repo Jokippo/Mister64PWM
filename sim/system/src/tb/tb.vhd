@@ -133,10 +133,12 @@ begin
       VI_AAOFF              => '0',
       VI_DIVOTOFF           => '0',
       VI_7BITPERCOLOR       => '0',
+      VI_DIRECTFBMODE       => '0',
       
       CICTYPE               => "0000",
       RAMSIZE8              => '1',
       FASTRAM               => '0',
+      FASTROM               => '0',
       INSTRCACHEON          => '1',
       DATACACHEON           => '1',
       DATACACHESLOW         => "0000",

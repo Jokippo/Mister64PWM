@@ -12,12 +12,15 @@ entity VI_lineProcess is
       clk1x              : in  std_logic;
       reset              : in  std_logic;
       
-      VI_CTRL_TYPE       : in unsigned(1 downto 0);
+      VI_DIRECTFBMODE    : in  std_logic;
+      
+      VI_CTRL_TYPE       : in  unsigned(1 downto 0);
       VI_CTRL_AA_MODE    : in  unsigned(1 downto 0);
-      VI_WIDTH           : in unsigned(11 downto 0);
+      VI_WIDTH           : in  unsigned(11 downto 0);
       
       newFrame           : in  std_logic;
       startProc          : in  std_logic;
+      interlacedField    : in  std_logic;
       procDone           : out std_logic := '0';
       
       fetchAddr          : out unsigned(9 downto 0) := (others => '0');
@@ -31,7 +34,14 @@ entity VI_lineProcess is
       proc_y             : out unsigned(9 downto 0) := (others => '0');
       proc_pixel_Mid     : out tfetchelement := (others => (others => '0'));
       proc_pixels_AA     : out tfetcharray_AA := (others => (others => (others => '0')));
-      proc_pixels_DD     : out tfetcharray_DD := (others => (others => (others => '0')))
+      proc_pixels_DD     : out tfetcharray_DD := (others => (others => (others => '0')));
+      
+      video_blockVIFB    : in  std_logic;
+      line_x_min         : in  unsigned(9 downto 0);
+      line_x_max         : in  unsigned(9 downto 0);
+      VIFB_frameindex    : in  unsigned(1 downto 0);
+      VIFBfifo_Din       : out std_logic_vector(87 downto 0); -- 64bit data + 24 bit address
+      VIFBfifo_Wr        : out std_logic := '0'  
    );
 end entity;
 
@@ -45,6 +55,7 @@ architecture arch of VI_lineProcess is
    );
    signal state         : tstate := IDLE; 
    
+   signal newFrame_1    : std_logic := '0';
    signal lineLength    : unsigned(9 downto 0) := (others => '0');        
    signal cnt_x         : unsigned(9 downto 0) := (others => '0');        
    signal cnt_y         : unsigned(9 downto 0) := (others => '0');
@@ -64,6 +75,8 @@ architecture arch of VI_lineProcess is
    signal fetchdata16   : tfetchdata16;
    
    signal lineEnd       : std_logic;
+   
+   signal fb_count      : std_logic := '0';
 
 begin 
   
@@ -122,8 +135,10 @@ begin
    begin
       if rising_edge(clk1x) then
          
-         proc_pixel <= '0';
-         procDone   <= '0';
+         proc_pixel  <= '0';
+         procDone    <= '0';
+         VIFBfifo_Wr <= '0';
+         newFrame_1  <= newFrame;
          
          if (reset = '1') then
          
@@ -134,17 +149,37 @@ begin
             case (state) is
             
                when IDLE =>
+                  
                   if (newFrame = '1') then
-                     cnt_y     <= (others => '0');
+                     cnt_y                      <= (others => '0');
+                  end if;
+                  if (newFrame_1 = '1') then
+                     VIFBfifo_Din(87 downto 64) <= x"2" & std_logic_vector(VIFB_frameindex) & "00" & x"0000";
+                     if (interlacedField = '1' and video_blockVIFB = '1') then
+                        VIFBfifo_Din(81 downto 73) <= 9x"01";
+                     end if;
                   end if;
                   if (startProc = '1') then
                      fetchAddr   <= (others => '0');
                      fetchAddr9  <= (others => '0');
                      firstword16 <= '1';
                      state       <= FETCH0;
-                     cnt_x       <= (others => '0');    
-                     prefetch    <= 5;
-                     proc_border <= '0';
+                     cnt_x       <= (others => '0');  
+                     proc_border <= '0';       
+                     if (VI_DIRECTFBMODE = '1') then
+                        prefetch <= 0;
+                     else
+                        prefetch <= 5;
+                     end if;
+                     VIFBfifo_Din(72 downto 64) <= 9x"00";  
+                     if (cnt_y > 0) then
+                        if (video_blockVIFB = '1') then
+                           VIFBfifo_Din(81 downto 73) <= std_logic_vector(unsigned(VIFBfifo_Din(81 downto 73)) + 2);
+                        else
+                           VIFBfifo_Din(81 downto 73) <= std_logic_vector(unsigned(VIFBfifo_Din(81 downto 73)) + 1);
+                        end if;
+                     end if;
+                     fb_count    <= '0';        
                   end if;
             
                when FETCH0 =>
@@ -176,6 +211,22 @@ begin
                      proc_pixel  <= '1';
                      proc_x      <= cnt_x;
                      proc_y      <= cnt_y;
+                     
+                     fb_count <= not fb_count;
+                     VIFBfifo_Din(63 downto 56) <= x"00"; 
+                     VIFBfifo_Din(55 downto 48) <= std_logic_vector(fetchArray(2).b); 
+                     VIFBfifo_Din(47 downto 40) <= std_logic_vector(fetchArray(2).g); 
+                     VIFBfifo_Din(39 downto 32) <= std_logic_vector(fetchArray(2).r); 
+                     if (cnt_x < line_x_min or cnt_x >= line_x_max) then
+                        VIFBfifo_Din(55 downto 32) <= (others => '0');
+                     end if;
+                     VIFBfifo_Din(31 downto 0) <= VIFBfifo_Din(63 downto 32);
+                     if (VI_DIRECTFBMODE = '1' and fb_count = '1') then
+                        VIFBfifo_Wr <= '1';
+                     end if;
+                     if (VIFBfifo_Wr = '1') then
+                        VIFBfifo_Din(72 downto 64) <= std_logic_vector(unsigned(VIFBfifo_Din(72 downto 64)) + 1);
+                     end if;
                      
                      cnt_x       <= cnt_x + 1;
                      if (lineEnd = '1') then

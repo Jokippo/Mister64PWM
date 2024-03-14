@@ -35,10 +35,12 @@ entity n64top is
       VI_DIVOTOFF             : in  std_logic;
       VI_NOISEOFF             : in  std_logic;
       VI_7BITPERCOLOR         : in  std_logic;
+      VI_DIRECTFBMODE         : in  std_logic;
       
       CICTYPE                 : in  std_logic_vector(3 downto 0);
       RAMSIZE8                : in  std_logic;
       FASTRAM                 : in  std_logic;
+      FASTROM                 : in  std_logic;
       INSTRCACHEON            : in  std_logic;
       DATACACHEON             : in  std_logic;
       DATACACHESLOW           : in  std_logic_vector(3 downto 0); 
@@ -181,7 +183,11 @@ entity n64top is
       video_interlace         : out std_logic;
       video_r                 : out std_logic_vector(7 downto 0);
       video_g                 : out std_logic_vector(7 downto 0);
-      video_b                 : out std_logic_vector(7 downto 0)
+      video_b                 : out std_logic_vector(7 downto 0);
+      
+      video_FB_base           : out unsigned(31 downto 0);
+      video_FB_sizeX          : out unsigned(9 downto 0);
+      video_FB_sizeY          : out unsigned(9 downto 0)
    );
 end entity;
 
@@ -202,7 +208,7 @@ architecture arch of n64top is
    
    -- error codes
    signal errorEna               : std_logic;
-   signal errorCode              : unsigned(27 downto 0) := (others => '0');
+   signal errorCode              : unsigned(31 downto 0) := (others => '0');
    
    signal errorMEMMUX            : std_logic;
    signal errorCPU_instr         : std_logic;
@@ -232,6 +238,7 @@ architecture arch of n64top is
    signal error_RDPMEMMUX        : std_logic;
    signal errorCPU_fifo          : std_logic;
    signal errorCPU_TLB           : std_logic;
+   signal errorDDR3_outPI        : std_logic;
   
    -- irq
    signal irqRequest             : std_logic;
@@ -265,6 +272,14 @@ architecture arch of n64top is
    signal rdpfifoZ_Wr            : std_logic;  
    signal rdpfifoZ_nearfull      : std_logic;    
    signal rdpfifoZ_empty         : std_logic;    
+   
+   signal PIfifo_Din             : std_logic_vector(92 downto 0);
+   signal PIfifo_Wr              : std_logic;  
+   signal PIfifo_nearfull        : std_logic;  
+   signal PIfifo_empty           : std_logic;  
+   
+   signal VIFBfifo_Din           : std_logic_vector(87 downto 0);
+   signal VIFBfifo_Wr            : std_logic;         
 
    -- SDRAM Mux
    signal sdrammux_idle          : std_logic;
@@ -553,6 +568,9 @@ begin
    process (reset_intern_1x, error_RDPMEMMUX      ) begin if (error_RDPMEMMUX       = '1') then errorCode(25) <= '1'; elsif (reset_intern_1x = '1') then errorCode(25) <= '0'; end if; end process;
    process (reset_intern_1x, errorCPU_fifo        ) begin if (errorCPU_fifo         = '1') then errorCode(26) <= '1'; elsif (reset_intern_1x = '1') then errorCode(26) <= '0'; end if; end process;
    process (reset_intern_1x, errorCPU_TLB         ) begin if (errorCPU_TLB          = '1') then errorCode(27) <= '1'; elsif (reset_intern_1x = '1') then errorCode(27) <= '0'; end if; end process;
+   process (reset_intern_1x, errorDDR3_outPI      ) begin if (errorDDR3_outPI       = '1') then errorCode(28) <= '1'; elsif (reset_intern_1x = '1') then errorCode(28) <= '0'; end if; end process;
+   
+   errorCode(31 downto 29) <= "000";
    
    process (clk1x)
    begin
@@ -806,6 +824,7 @@ begin
       VI_AAOFF             => VI_AAOFF,
       VI_DIVOTOFF          => VI_DIVOTOFF,
       VI_7BITPERCOLOR      => VI_7BITPERCOLOR,
+      VI_DIRECTFBMODE      => VI_DIRECTFBMODE,
      
       errorEna             => errorEna, 
       errorCode            => errorCode,
@@ -818,7 +837,10 @@ begin
       rdram_granted        => rdram_granted(DDR3MUX_VI),      
       rdram_done           => rdram_done(DDR3MUX_VI),     
       ddr3_DOUT            => ddr3_DOUT,       
-      ddr3_DOUT_READY      => ddr3_DOUT_READY,       
+      ddr3_DOUT_READY      => ddr3_DOUT_READY,   
+
+      VIFBfifo_Din         => VIFBfifo_Din,
+      VIFBfifo_Wr          => VIFBfifo_Wr,       
       
       sdram_request        => sdramMux_request(SDRAMMUX_VI),   
       sdram_rnw            => sdramMux_rnw(SDRAMMUX_VI),       
@@ -837,7 +859,11 @@ begin
       video_interlace      => video_interlace,     
       video_r              => video_r,      
       video_g              => video_g,      
-      video_b              => video_b,  
+      video_b              => video_b,
+      
+      video_FB_base        => video_FB_base,
+      video_FB_sizeX       => video_FB_sizeX,
+      video_FB_sizeY       => video_FB_sizeY,
 
       bus_addr             => bus_VI_addr,     
       bus_dataWrite        => bus_VI_dataWrite,
@@ -953,6 +979,7 @@ begin
       ce                   => ce_1x,           
       reset                => reset_intern_1x, 
       
+      FASTROM              => FASTROM,
       SAVETYPE             => SAVETYPE,
       fastDecay            => is_simu,
       cartAvailable        => cartAvailable,
@@ -977,11 +1004,14 @@ begin
       rdram_rnw            => rdram_rnw(DDR3MUX_PI),       
       rdram_address        => rdram_address(DDR3MUX_PI),   
       rdram_burstcount     => rdram_burstcount(DDR3MUX_PI),
-      rdram_writeMask      => rdram_writeMask(DDR3MUX_PI), 
-      rdram_dataWrite      => rdram_dataWrite(DDR3MUX_PI), 
       rdram_done           => rdram_done(DDR3MUX_PI),      
       rdram_dataRead       => rdram_dataRead,      
-                            
+      
+      PIfifo_Din           => PIfifo_Din,    
+      PIfifo_Wr            => PIfifo_Wr,   
+      PIfifo_nearfull      => PIfifo_nearfull,  
+      PIfifo_empty         => PIfifo_empty,  
+      
       bus_reg_addr         => bus_PIreg_addr,     
       bus_reg_dataWrite    => bus_PIreg_dataWrite,
       bus_reg_read         => bus_PIreg_read,     
@@ -1210,6 +1240,7 @@ begin
       error_outRSP     => errorDDR3_outRSP,
       error_outRDP     => errorDDR3_outRDP,
       error_outRDPZ    => errorDDR3_outRDPZ,
+      error_outPI      => errorDDR3_outPI,
                                           
       ddr3_BUSY        => ddr3_BUSY,       
       ddr3_DOUT        => ddr3_DOUT,       
@@ -1247,7 +1278,15 @@ begin
       rdpfifoZ_Din     => rdpfifoZ_Din,     
       rdpfifoZ_Wr      => rdpfifoZ_Wr,      
       rdpfifoZ_nearfull=> rdpfifoZ_nearfull,
-      rdpfifoZ_empty   => rdpfifoZ_empty
+      rdpfifoZ_empty   => rdpfifoZ_empty,
+      
+      PIfifo_Din       => PIfifo_Din,    
+      PIfifo_Wr        => PIfifo_Wr,   
+      PIfifo_nearfull  => PIfifo_nearfull,   
+      PIfifo_empty     => PIfifo_empty,
+      
+      VIFBfifo_Din     => VIFBfifo_Din,
+      VIFBfifo_Wr      => VIFBfifo_Wr
    );
    
    sdramMux_writeMask(SDRAMMUX_VI) <= (others => '0');

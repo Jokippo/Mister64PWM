@@ -36,7 +36,11 @@ entity VI_outProcess is
       filter_y                      : in  std_logic;
       filterAddr                    : out unsigned(10 downto 0) := (others => '0');
       filterData                    : in  unsigned(23 downto 0);
-                  
+          
+      line_x_min                    : out unsigned(9 downto 0) := (others => '0');
+      line_x_max                    : out unsigned(9 downto 0) := (others => '0');
+      line_x_end                    : out unsigned(9 downto 0) := (others => '0');
+          
       out_pixel                     : out std_logic := '0';
       out_x                         : out unsigned(9 downto 0) := (others => '0');        
       out_y                         : out unsigned(9 downto 0) := (others => '0');
@@ -114,6 +118,9 @@ architecture arch of VI_outProcess is
    signal gamma_start_2 : std_logic := '0';
    signal gamma_start_3 : std_logic := '0';
    
+   signal x_min         :unsigned(9 downto 0) := (others => '0');
+   signal x_max         :unsigned(9 downto 0) := (others => '0');
+   
    signal gamma_in      : unsigned(13 downto 0);
    signal gamma_sqrt    : unsigned(7 downto 0);
 
@@ -159,11 +166,15 @@ begin
                   fetch_y   <= (others => '0');
                end if;
                if (startOut = '1') then
-                  state     <= STARTFETCH;
-                  fetch_x   <= (others => '0');    
-                  dx        <= VI_H_VIDEO_START;
-                  x_accu    <= 8x"0" & VI_X_SCALE_OFFSET;
-                  fetchLine <= not filter_y;
+                  state       <= STARTFETCH;
+                  fetch_x     <= (others => '0');    
+                  dx          <= VI_H_VIDEO_START;
+                  x_accu      <= 8x"0" & VI_X_SCALE_OFFSET;
+                  fetchLine   <= not filter_y;
+                  line_x_min  <= x_min;
+                  line_x_max  <= x_max;
+                  x_min       <= (others => '1');
+                  x_max       <= (others => '0');
                end if;
                
             when STARTFETCH =>
@@ -176,6 +187,11 @@ begin
                topleft(0)  <= filterData( 7 downto  0);
                topleft(1)  <= filterData(15 downto  8);
                topleft(2)  <= filterData(23 downto 16);
+               
+               if (bi_guard = '0') then
+                  if (x_accu(19 downto 10) < x_min) then x_min <= x_accu(19 downto 10); end if;
+                  if (x_accu(19 downto 10) > x_max) then x_max <= x_accu(19 downto 10); end if;
+               end if;
                
             when FETCH1 =>
                state          <= FETCH2;
@@ -204,8 +220,9 @@ begin
                dx             <= dx + 1;
                fetch_x        <= fetch_x + 1;
                if (fetch_x >= 639) then
-                  state    <= IDLE;
-                  fetch_y  <= fetch_y + 1;
+                  state      <= IDLE;
+                  fetch_y    <= fetch_y + 1;
+                  line_x_end <= x_accu(19 downto 10);
                end if;
                
                bi_start       <= '1';
@@ -272,7 +289,7 @@ begin
             out_color(16) <= lfsr(2);
          end if;
          
-         if (gamma_guard = '1') then
+         if (gamma_guard = '1' or VI_X_SCALE_FACTOR = 0) then
             out_color <= (others => '0');
          end if;
        

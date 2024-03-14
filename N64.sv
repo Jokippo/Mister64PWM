@@ -191,6 +191,14 @@ assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
 
+assign FB_BASE    = video_FB_base;
+assign FB_EN      = status[105];
+assign FB_FORMAT  = 5'b00110;
+assign FB_WIDTH   = {2'd0, video_FB_sizeX};
+assign FB_HEIGHT  = {2'd0, video_FB_sizeY};
+assign FB_STRIDE  = 14'd4096;
+assign FB_FORCE_BLANK = 0;
+
 ///////////////////////  CLOCK/RESET  ///////////////////////////////////
 
 wire clk_1x;
@@ -315,16 +323,18 @@ parameter CONF_STR = {
    "D0P1O[45:44],Crop Vertical,None,8,12;",
    "P1O[48:47],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
    "P1-;",
+   "P1O[105],Video Out,Original(VI),Clean HDMI;",
+   "D1P1O[104],VI Colorbits,Original(21),24;",
+   "D1P1O[32],VI Bilinear,Original,Off;",
+   "D1P1O[33],VI Gamma,Original,Off;",
+   "D1P1O[88:87],VI Dedither,Original,Off,Force;",
+   "D1P1O[35],VI Antialias,Original,Off;",
+   "D1P1O[36],VI Divot,Original,Off;",
+   "D1P1O[37],VI Noisedither,Original,Off;",
+   "P1-;",
    "P1O[30],Texture Filter,Original,Off;",
    "P1O[31],Dithering,Original,Off;",
    "P1O[34],LOD Textures,Original,Off;",
-   "P1O[104],VI Colorbits,Original(21),24;",
-   "P1O[32],VI Bilinear,Original,Off;",
-   "P1O[33],VI Gamma,Original,Off;",
-   "P1O[88:87],VI Dedither,Original,Off,Force;",
-   "P1O[35],VI Antialias,Original,Off;",
-   "P1O[36],VI Divot,Original,Off;",
-   "P1O[37],VI Noisedither,Original,Off;",
    "P1-;",
    "P1O[2],Error Overlay,Off,On;",
    "P1O[28],FPS Overlay,Off,On;",
@@ -346,6 +356,7 @@ parameter CONF_STR = {
    
    "P3,Debug settings;",
    "P3O[83],Fast RAM access,Off,On;",
+   "P3O[106],Fast ROM access,Off,On;",
    "P3O[93],Instr Cache,On,Off;",
    "P3O[43],Data Cache,On,Off;",
    "P3O[100],Data Cache from TLB,On,Off;",
@@ -406,7 +417,7 @@ wire [24:0] mouse;
 wire [10:0] ps2_key;
 
 wire [127:0] status_in = {status[127:40],ss_slot,status[37:0]};
-wire [15:0] status_menumask = {15'd0, status[82]};
+wire [15:0] status_menumask = {14'd0, status[105], status[82]};
 
 wire DIRECT_VIDEO;
 
@@ -693,6 +704,11 @@ end
 wire HBlank;
 wire VBlank;
 wire Interlaced;
+wire [31:0] video_FB_base;
+wire [9:0] video_FB_sizeX;
+wire [9:0] video_FB_sizeY;
+wire video_blockVIFB;
+wire video_ce;
 
 assign DDRAM_CLK = clk_2x;
 //assign DDRAM_CLK = clk_1x;
@@ -715,7 +731,7 @@ n64top
    .fpscountOn(status[28]),
    
    .ISPAL(status[79]),
-   .FIXEDBLANKS(~status[82]),
+   .FIXEDBLANKS(~status[82] && ~status[105]),
    .CROPVERTICAL(status[45:44]),
    .VI_BILINEAROFF(status[32]),
    .VI_GAMMAOFF(status[33]),
@@ -725,10 +741,12 @@ n64top
    .VI_DIVOTOFF(status[36]),
    .VI_NOISEOFF(status[37]),
    .VI_7BITPERCOLOR(~status[104]),
+   .VI_DIRECTFBMODE(status[105]),
    
    .CICTYPE(status[68:65]),
    .RAMSIZE8(~status[70]),
    .FASTRAM(status[83]),
+   .FASTROM(status[106]),
    .INSTRCACHEON(~status[93]),
    .DATACACHEON(~status[43]),
    .DATACACHESLOW(status[27:24]),
@@ -867,24 +885,30 @@ n64top
    .video_vsync      (VGA_VS),
    .video_hblank     (HBlank),
    .video_vblank     (VBlank),
-   .video_ce         (CE_PIXEL),
+   .video_ce         (video_ce),
    .video_interlace  (Interlaced),
    .video_r          (VGA_R),
    .video_g          (VGA_G),
-   .video_b          (VGA_B)
+   .video_b          (VGA_B),
+   
+   .video_FB_base    (video_FB_base),
+   .video_FB_sizeX   (video_FB_sizeX),
+   .video_FB_sizeY   (video_FB_sizeY)
 );
 
 assign CLK_VIDEO = clk_vid;
-assign VGA_DE = ~(HBlank | VBlank);
-assign VGA_F1 = Interlaced ^ status[1];
+assign VGA_DE = status[105] ? 1'b0 : ~(HBlank | VBlank);
+assign VGA_F1 = status[105] ? 1'b0 : Interlaced ^ status[1];
 assign VGA_SL = 0;
 assign VGA_DISABLE = 0;
+
+assign CE_PIXEL = video_ce;
    
 reg [11:0] ARCoreX = 12'd4;
 reg [11:0] ARCoreY = 12'd3;
    
 always @(posedge clk_1x) begin
-   if (status[82]) begin // fixed blanks off
+   if (status[82] || status[105]) begin // fixed blanks off
       ARCoreX <= 12'd4;
       ARCoreY <= 12'd3;
    end else begin

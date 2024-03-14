@@ -40,6 +40,7 @@ List of Errors:
 - Bit 25 - RDP Mux missed request
 - Bit 26 - CPU Writefifo full (should never happen, internal CPU logic bug)
 - Bit 27 - TLB access from multiple sources in parallel (should never happen, internal CPU logic bug)
+- Bit 28 - PI DMA wants to write outside of RDRAM
   
 ## Status
 

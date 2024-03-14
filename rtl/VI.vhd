@@ -35,9 +35,10 @@ entity VI is
       VI_AAOFF         : in  std_logic;
       VI_DIVOTOFF      : in  std_logic;
       VI_7BITPERCOLOR  : in  std_logic;
+      VI_DIRECTFBMODE  : in  std_logic;
       
       errorEna         : in  std_logic;
-      errorCode        : in  unsigned(27 downto 0);
+      errorCode        : in  unsigned(31 downto 0);
       fpscountOn       : in  std_logic;
       
       rdram_request    : out std_logic := '0';
@@ -48,6 +49,9 @@ entity VI is
       rdram_done       : in  std_logic;
       ddr3_DOUT        : in  std_logic_vector(63 downto 0);
       ddr3_DOUT_READY  : in  std_logic;
+      
+      VIFBfifo_Din     : out std_logic_vector(87 downto 0);
+      VIFBfifo_Wr      : out std_logic := '0';
       
       sdram_request    : out std_logic := '0';
       sdram_rnw        : out std_logic := '0'; 
@@ -67,6 +71,10 @@ entity VI is
       video_r          : out std_logic_vector(7 downto 0);
       video_g          : out std_logic_vector(7 downto 0);
       video_b          : out std_logic_vector(7 downto 0);
+      
+      video_FB_base    : out unsigned(31 downto 0);
+      video_FB_sizeX   : out unsigned(9 downto 0);
+      video_FB_sizeY   : out unsigned(9 downto 0);
       
       bus_addr         : in  unsigned(19 downto 0); 
       bus_dataWrite    : in  std_logic_vector(31 downto 0);
@@ -128,6 +136,9 @@ architecture arch of VI is
 
    signal newFrame                        : std_logic;
    signal newLine                         : std_logic;
+   
+   signal sameFrameCnt              : unsigned(4 downto 0) := (others => '0');
+   signal video_blockVIFB           : std_logic;
    
    -- fps counter
    signal fpscountBCD               : unsigned(7 downto 0) := (others => '0');
@@ -327,6 +338,14 @@ begin
                      fpscountBCD_next(3 downto 0) <= fpscountBCD_next(3 downto 0) + 1;
                   end if;
                end if;
+               if (VI_ORIGIN(23 downto 12) /= fps_VI_ORIGIN_last(23 downto 12) or VI_CTRL_SERRATE = '0') then
+                  video_blockVIFB <= '0';
+                  sameFrameCnt    <= (others => '0');
+               elsif (sameFrameCnt < 30) then
+                  sameFrameCnt <= sameFrameCnt + 1;
+               else
+                  video_blockVIFB <= '1';
+               end if;
             end if;
             
             second_ena <= '0';
@@ -371,6 +390,7 @@ begin
       VI_AAOFF                         => VI_AAOFF,
       VI_DIVOTOFF                      => VI_DIVOTOFF,
       VI_7BITPERCOLOR                  => VI_7BITPERCOLOR,
+      VI_DIRECTFBMODE                  => VI_DIRECTFBMODE,
             
       errorEna                         => errorEna, 
       errorCode                        => errorCode,
@@ -412,6 +432,9 @@ begin
       rdram_done                       => rdram_done,  
       ddr3_DOUT                        => ddr3_DOUT,       
       ddr3_DOUT_READY                  => ddr3_DOUT_READY,
+      
+      VIFBfifo_Din                     => VIFBfifo_Din,
+      VIFBfifo_Wr                      => VIFBfifo_Wr, 
             
       sdram_request                    => sdram_request,   
       sdram_rnw                        => sdram_rnw,       
@@ -431,6 +454,11 @@ begin
       video_r                          => video_r,      
       video_g                          => video_g,      
       video_b                          => video_b,
+      
+      video_blockVIFB                  => video_blockVIFB,
+      video_FB_base                    => video_FB_base,
+      video_FB_sizeX                   => video_FB_sizeX,
+      video_FB_sizeY                   => video_FB_sizeY,
                   
       SS_VI_CURRENT                    => unsigned(ss_in(1)(9 downto 0)),
       SS_nextHCount                    => unsigned(ss_in(6)(43 downto 32))

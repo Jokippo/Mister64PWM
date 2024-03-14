@@ -32,9 +32,10 @@ entity VI_videoout is
       VI_AAOFF                         : in  std_logic;
       VI_DIVOTOFF                      : in  std_logic;
       VI_7BITPERCOLOR                  : in  std_logic;
+      VI_DIRECTFBMODE                  : in  std_logic;
                   
       errorEna                         : in  std_logic;
-      errorCode                        : in  unsigned(27 downto 0);
+      errorCode                        : in  unsigned(31 downto 0);
                   
       fpscountOn                       : in  std_logic;
       fpscountBCD                      : in  unsigned(7 downto 0);  
@@ -73,6 +74,9 @@ entity VI_videoout is
       rdram_done                       : in  std_logic;
       ddr3_DOUT                        : in  std_logic_vector(63 downto 0);
       ddr3_DOUT_READY                  : in  std_logic;
+      
+      VIFBfifo_Din                     : out std_logic_vector(87 downto 0);
+      VIFBfifo_Wr                      : out std_logic := '0'; 
                   
       sdram_request                    : out std_logic := '0';
       sdram_rnw                        : out std_logic := '0'; 
@@ -92,6 +96,11 @@ entity VI_videoout is
       video_r                          : out std_logic_vector(7 downto 0);
       video_g                          : out std_logic_vector(7 downto 0);
       video_b                          : out std_logic_vector(7 downto 0);
+      
+      video_blockVIFB                  : in  std_logic;
+      video_FB_base                    : out unsigned(31 downto 0);
+      video_FB_sizeX                   : out unsigned(9 downto 0);
+      video_FB_sizeY                   : out unsigned(9 downto 0);
                   
       SS_VI_CURRENT                    : in unsigned(9 downto 0);
       SS_nextHCount                    : in unsigned(11 downto 0)
@@ -137,6 +146,9 @@ architecture arch of VI_videoout is
    signal rdram9_storeAddr    : unsigned(5 downto 0);
    signal rdram9_store        : std_logic_vector(2 downto 0);
    
+   signal VI_WIDTH_adjust     : unsigned(11 downto 0);
+   signal VIFB_frameindex     : unsigned(1 downto 0) := (others => '0');
+   signal VIFB_frameLast      : unsigned(1 downto 0) := (others => '0');
    signal addr9_offset        : taddr9offset;
    signal startProc           : std_logic; 
    signal procPtr             : std_logic_vector(2 downto 0);
@@ -144,6 +156,7 @@ architecture arch of VI_videoout is
    signal startOut            : std_logic; 
    signal outprocIdle         : std_logic; 
    signal fracYout            : unsigned(4 downto 0);
+   signal FetchLineCount      : unsigned(9 downto 0);
    
    signal fetchAddr           : unsigned(9 downto 0);
    signal fetchAddr9          : unsigned(9 downto 0);
@@ -173,6 +186,10 @@ architecture arch of VI_videoout is
    signal filterram_do_B      : std_logic_vector(23 downto 0);
    
    signal filterAddr          : unsigned(10 downto 0);
+   
+   signal line_x_min          : unsigned(9 downto 0);
+   signal line_x_max          : unsigned(9 downto 0);
+   signal line_x_end          : unsigned(9 downto 0);
       
    signal out_pixel           : std_logic;
    signal out_x               : unsigned(9 downto 0);        
@@ -197,7 +214,7 @@ architecture arch of VI_videoout is
    signal overlay_fps_data    : std_logic_vector(23 downto 0);
    signal overlay_fps_ena     : std_logic;
    
-   signal errortext           : unsigned(55 downto 0);
+   signal errortext           : unsigned(63 downto 0);
    signal overlay_error_data  : std_logic_vector(23 downto 0);
    signal overlay_error_ena   : std_logic;   
    
@@ -230,6 +247,37 @@ begin
    videoout_settings.VI_HSYNC_WIDTH    <= VI_HSYNC_WIDTH;
    videoout_settings.VI_VSYNC_WIDTH    <= VI_VSYNC_WIDTH;
    
+   process (clk1x)
+   begin
+      if rising_edge(clk1x) then
+      
+         VI_WIDTH_adjust <= VI_WIDTH;
+         
+         if (VI_CTRL_SERRATE = '1' and VI_DIRECTFBMODE = '1' and VI_WIDTH >= 512 and VI_X_SCALE_FACTOR <= x"200") then
+            VI_WIDTH_adjust <= '0' & VI_WIDTH(11 downto 1);
+         end if;         
+         
+         if (VI_CTRL_SERRATE = '1' and VI_DIRECTFBMODE = '1' and VI_WIDTH >= 1280 and VI_X_SCALE_FACTOR = x"400") then
+            VI_WIDTH_adjust <= '0' & VI_WIDTH(11 downto 1);
+         end if;
+         
+         if (newFrame = '1') then
+            if (video_blockVIFB = '1') then
+               VIFB_frameLast  <= (others => '0');
+               VIFB_frameindex <= (others => '0');
+            else
+               VIFB_frameLast  <= VIFB_frameindex;
+               VIFB_frameindex <= VIFB_frameindex + 1;
+            end if;
+         end if;
+         
+      end if;
+   end process;
+   
+   video_FB_base  <= x"31" & "0" & VIFB_frameLast & "0" & x"00000";
+   video_FB_sizeX <= VI_WIDTH_adjust(9 downto 0) when (VI_WIDTH_adjust < line_x_end) else line_x_end;
+   video_FB_sizeY <= FetchLineCount(8 downto 0) & '0' when (video_blockVIFB = '1') else FetchLineCount;
+   
    newFrame   <= videoout_request.newFrame;
    newLine    <= videoout_reports.newLine;
    VI_CURRENT <= videoout_reports.VI_CURRENT & videoout_reports.interlacedDisplayField; -- todo: need to find when interlace sets bit 0, can't be instant, otherwise Kroms CPU tests would hang in infinite loop  
@@ -242,17 +290,21 @@ begin
       reset              => reset_1x,    
 
       error_linefetch    => error_linefetch,
+      
+      VI_DIRECTFBMODE    => VI_DIRECTFBMODE,
                                         
       VI_CTRL_TYPE       => VI_CTRL_TYPE,     
       VI_CTRL_SERRATE    => VI_CTRL_SERRATE,  
       VI_ORIGIN          => VI_ORIGIN,        
-      VI_WIDTH           => VI_WIDTH,         
+      VI_WIDTH           => VI_WIDTH_adjust,         
       VI_X_SCALE_FACTOR  => VI_X_SCALE_FACTOR,
       VI_Y_SCALE_FACTOR  => VI_Y_SCALE_FACTOR,
       VI_Y_SCALE_OFFSET  => VI_Y_SCALE_OFFSET,
                         
       newFrame           => videoout_request.newFrame,
       fetch              => videoout_request.fetch,
+      interlacedField    => videoout_reports.interlacedDisplayField,
+      video_blockVIFB    => video_blockVIFB,
       
       addr9_offset       => addr9_offset,
       startProc          => startProc,
@@ -262,6 +314,7 @@ begin
       outprocIdle        => outprocIdle,
       startOut           => startOut,
       fracYout           => fracYout,
+      FetchLineCount     => FetchLineCount,
       
       rdram_request      => rdram_request,   
       rdram_rnw          => rdram_rnw,       
@@ -364,12 +417,15 @@ begin
       clk1x              => clk1x,         
       reset              => reset_1x,         
                          
+      VI_DIRECTFBMODE    => VI_DIRECTFBMODE,
+                         
       VI_CTRL_TYPE       => VI_CTRL_TYPE,  
       VI_CTRL_AA_MODE    => VI_CTRL_AA_MODE,  
-      VI_WIDTH           => VI_WIDTH,      
+      VI_WIDTH           => VI_WIDTH_adjust,      
                          
       newFrame           => videoout_request.newFrame,          
-      startProc          => startProc,     
+      startProc          => startProc,    
+      interlacedField    => videoout_reports.interlacedDisplayField,
       procDone           => procDone,     
                          
       fetchAddr          => fetchAddr,     
@@ -383,7 +439,14 @@ begin
       proc_y             => proc_y,        
       proc_pixel_Mid     => proc_pixel_Mid,
       proc_pixels_AA     => proc_pixels_AA,
-      proc_pixels_DD     => proc_pixels_DD
+      proc_pixels_DD     => proc_pixels_DD,
+      
+      video_blockVIFB    => video_blockVIFB,
+      line_x_min         => line_x_min,
+      line_x_max         => line_x_max,
+      VIFB_frameindex    => VIFB_frameindex,
+      VIFBfifo_Din       => VIFBfifo_Din,
+      VIFBfifo_Wr        => VIFBfifo_Wr 
    );
    
    iVI_filter: entity work.VI_filter
@@ -468,7 +531,11 @@ begin
                                     
       filter_y                      => filter_y_out(0),
       filterAddr                    => filterAddr,      
-      filterData                    => unsigned(filterram_do_B),      
+      filterData                    => unsigned(filterram_do_B),     
+
+      line_x_min                    => line_x_min,
+      line_x_max                    => line_x_max,
+      line_x_end                    => line_x_end,
                                     
       out_pixel                     => out_pixel,       
       out_x                         => out_x,               
@@ -499,34 +566,7 @@ begin
       q_b         => outram_do_B
    );   
    
-   outram_addr_B <= std_logic_vector(videoout_readAddr);
-
-   --ivi_videoout_sync : entity work.vi_videoout_sync
-   --generic map
-   --(
-   --   VITEST           => VITEST
-   --)
-   --port map
-   --(
-   --   clk1x                   => clk1x,
-   --   ce                      => ce,   
-   --   reset                   => reset_1x,
-   --            
-   --   videoout_settings       => videoout_settings,
-   --   videoout_reports        => videoout_reports,                 
-   --                                                                   
-   --   videoout_request        => videoout_request, 
-   --   videoout_readAddr       => videoout_readAddr,  
-   --   videoout_pixelRead      => outram_do_B,   
-   --
-   --   overlay_data            => overlay_data,
-   --   overlay_ena             => overlay_ena,                     
-   --                
-   --   videoout_out            => videoout_out,
-   --
-   --   SS_VI_CURRENT           => SS_VI_CURRENT,
-   --   SS_nextHCount           => SS_nextHCount
-   --);  
+   outram_addr_B <= std_logic_vector(videoout_readAddr); 
    
    ivi_videoout_async : entity work.vi_videoout_async
    generic map
@@ -581,7 +621,8 @@ begin
    errortext(39 downto 32) <= resize(errorCode(19 downto 16), 8) + 16#30# when (errorCode(19 downto 16) < 10) else resize(errorCode(19 downto 16), 8) + 16#37#;
    errortext(47 downto 40) <= resize(errorCode(23 downto 20), 8) + 16#30# when (errorCode(23 downto 20) < 10) else resize(errorCode(23 downto 20), 8) + 16#37#;
    errortext(55 downto 48) <= resize(errorCode(27 downto 24), 8) + 16#30# when (errorCode(27 downto 24) < 10) else resize(errorCode(27 downto 24), 8) + 16#37#;
-   ioverlayError : entity work.VI_overlay generic map (8, 4, 44, x"0000FF")
+   errortext(63 downto 56) <= resize(errorCode(31 downto 28), 8) + 16#30# when (errorCode(31 downto 28) < 10) else resize(errorCode(31 downto 28), 8) + 16#37#;
+   ioverlayError : entity work.VI_overlay generic map (9, 4, 44, x"0000FF")
    port map
    (
       clk                    => clkvid,

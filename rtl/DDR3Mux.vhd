@@ -31,6 +31,12 @@ end package;
 --------------- DDR3Mux module    -------------------------------
 -----------------------------------------------------------------
 
+--   0..8   Mbyte = RDRAM
+--   8..8   Mbyte = RMRAM read behind area 
+--  16..32  Mbyte = VI FB mode area
+--  32..96  Mbyte = N64 ROM fastload area 
+-- 192..256 Mbyte = Savestates
+
 library IEEE;
 use IEEE.std_logic_1164.all;  
 use IEEE.numeric_std.all; 
@@ -58,6 +64,7 @@ entity DDR3Mux is
       error_outRSP     : out std_logic;
       error_outRDP     : out std_logic;
       error_outRDPZ    : out std_logic;
+      error_outPI      : out std_logic;
 
       ddr3_BUSY        : in  std_logic;                    
       ddr3_DOUT        : in  std_logic_vector(63 downto 0);
@@ -95,7 +102,15 @@ entity DDR3Mux is
       rdpfifoZ_Din     : in  std_logic_vector(91 downto 0); -- 64bit data + 20 bit address + 8 byte enables
       rdpfifoZ_Wr      : in  std_logic;  
       rdpfifoZ_nearfull: out std_logic;  
-      rdpfifoZ_empty   : out std_logic 
+      rdpfifoZ_empty   : out std_logic;
+      
+      PIfifo_Din       : in  std_logic_vector(92 downto 0); -- 64bit data + 21 bit address + 8 byte enables
+      PIfifo_Wr        : in  std_logic;  
+      PIfifo_nearfull  : out std_logic;
+      PIfifo_empty     : out std_logic;
+
+      VIFBfifo_Din     : in  std_logic_vector(87 downto 0); -- 64bit data + 24 bit address
+      VIFBfifo_Wr      : in  std_logic     
    );
 end entity;
 
@@ -135,7 +150,16 @@ architecture arch of DDR3Mux is
 
    -- rdp fifo Z
    signal rdpfifoZ_Dout    : std_logic_vector(91 downto 0);
-   signal rdpfifoZ_Rd      : std_logic := '0';    
+   signal rdpfifoZ_Rd      : std_logic := '0';      
+   
+   -- PI fifo 
+   signal PIfifo_Dout      : std_logic_vector(92 downto 0);
+   signal PIfifo_Rd        : std_logic := '0';     
+   
+   -- VI FB fifo
+   signal VIFBfifo_Dout    : std_logic_vector(87 downto 0);
+   signal VIFBfifo_Rd      : std_logic := '0';    
+   signal VIFBfifo_empty   : std_logic := '0';    
 
    -- slow
    signal slow       : unsigned(3 downto 0) := (others => '0');
@@ -185,10 +209,13 @@ begin
          error_outRSP   <= '0';
          error_outRDP   <= '0';
          error_outRDPZ  <= '0';
+         error_outPI    <= '0';
          
          rspfifo_Rd  <= '0';
          rdpfifo_Rd  <= '0';
          rdpfifoZ_Rd <= '0';
+         PIFifo_Rd   <= '0';
+         VIFBfifo_Rd <= '0';
          
          ddr3_DOUT_READY_1 <= ddr3_DOUT_READY;
          
@@ -248,6 +275,20 @@ begin
                   if (rspfifo_req = '1') then
                   
                      ddr3State <= RSPFIFO;
+                     
+                  elsif (PIfifo_empty = '0' and PIfifo_Rd = '0') then
+                  
+                     PIfifo_Rd  <= '1';
+                     ddr3_WE    <= '1';
+                     ddr3_DIN   <= PIfifo_Dout(63 downto 0);      
+                     ddr3_BE    <= PIfifo_Dout(92 downto 85);       
+                     ddr3_ADDR(24 downto 0) <= "0000" & PIfifo_Dout(84 downto 64);
+                     ddr3_BURSTCNT <= x"01";           
+   
+                     if ((RAMSIZE8_2x = '1' and PIfifo_Dout(84) = '1') or (RAMSIZE8_2x = '0' and PIfifo_Dout(84 downto 83) /= "00")) then
+                        ddr3_WE      <= '0';
+                        error_outPI  <= '1';
+                     end if; 
                   
                   elsif (activeRequest = '1') then
                   
@@ -321,6 +362,15 @@ begin
                         ddr3_WE        <= '0';
                         error_outRDPZ  <= '1';
                      end if;  
+                     
+                  elsif (VIFBfifo_empty = '0' and VIFBfifo_Rd = '0') then
+                  
+                     VIFBfifo_Rd <= '1';
+                     ddr3_WE     <= '1';
+                     ddr3_DIN    <= VIFBfifo_Dout(63 downto 0);      
+                     ddr3_BE     <= x"FF";       
+                     ddr3_ADDR(24 downto 0) <= "0" & VIFBfifo_Dout(87 downto 64);
+                     ddr3_BURSTCNT <= x"01";
                   
                   end if;   
                   
@@ -458,6 +508,46 @@ begin
       Dout     => rdpfifoZ_Dout,    
       Rd       => rdpfifoZ_Rd,      
       Empty    => rdpfifoZ_empty   
+   );   
+   
+   iPIFifo: entity mem.SyncFifoFallThrough
+   generic map
+   (
+      SIZE             => 256,
+      DATAWIDTH        => 64 + 21 + 8, -- 64bit data + 21 bit address + 8 byte enables
+      NEARFULLDISTANCE => 128
+   )
+   port map
+   ( 
+      clk      => clk2x,
+      reset    => '0',  
+      Din      => PIFifo_Din,     
+      Wr       => (PIFifo_Wr and clk2xIndex),
+      Full     => open,    
+      NearFull => PIfifo_nearfull,
+      Dout     => PIFifo_Dout,    
+      Rd       => PIFifo_Rd,      
+      Empty    => PIFifo_empty   
+   );   
+   
+   iVIFBFifo: entity mem.SyncFifoFallThrough
+   generic map
+   (
+      SIZE             => 1024,
+      DATAWIDTH        => 64 + 24, -- 64bit data + 24 bit address
+      NEARFULLDISTANCE => 1000
+   )
+   port map
+   ( 
+      clk      => clk2x,
+      reset    => '0',  
+      Din      => VIFBfifo_Din,     
+      Wr       => (VIFBfifo_Wr and clk2xIndex),
+      Full     => open,    
+      NearFull => open,
+      Dout     => VIFBfifo_Dout,    
+      Rd       => VIFBfifo_Rd,      
+      Empty    => VIFBfifo_empty   
    );
 
 end architecture;
